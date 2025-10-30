@@ -14,14 +14,10 @@ import { ref, onDisconnect } from "firebase/database";
 import { database } from "@/lib/firebase";
 import { RoomFullModal } from "@/components/game/RoomFullModal"; // <-- añadido
 
-// Función para limpiar el código de sala de caracteres prohibidos por Firebase
-function sanitizeRoomId(roomId: string) {
-  return roomId.replace(/[.#$\[\]]/g, "_");
-}
+const DEFAULT_ROOM_ID = "main_loteria"; // sala única para todos
 
 export default function Home() {
   const [name, setName] = useState("");
-  const [room, setRoomState] = useState("");
   const [showRoomFullModal, setShowRoomFullModal] = useState(false);
   const MAX_PLAYERS = 25; // Límite de jugadores por sala
 
@@ -29,12 +25,8 @@ export default function Home() {
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim() && room.trim()) {
-      if (/[.#$\[\]]/.test(room.trim())) {
-        alert("El código de sala no puede contener los caracteres . # $ [ ]");
-        return;
-      }
-      const roomId = sanitizeRoomId(room.trim());
+    if (name.trim()) {
+      const roomId = DEFAULT_ROOM_ID;
       const playerName = name.trim();
       const roomData = await getRoom(roomId);
 
@@ -74,7 +66,7 @@ export default function Home() {
         });
       } else {
         // Si existe, agrega el jugador con board y markedIndices
-        const newHost = roomData.gameState?.host || playerName; // 
+        const newHost = roomData.gameState?.host || playerName;
         await updateRoom(roomId, {
           players: {
             ...roomData.players,
@@ -97,14 +89,13 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const roomId = sanitizeRoomId(room.trim());
     const playerName = name.trim();
-    if (roomId && playerName) {
-      const playerRef = ref(database, `rooms/${roomId}/players/${playerName}`);
+    if (playerName) {
+      const playerRef = ref(database, `rooms/${DEFAULT_ROOM_ID}/players/${playerName}`);
       // Elimina al jugador si se desconecta (funciona incluso si se apaga la compu)
       onDisconnect(playerRef).remove();
     }
-  }, [room, name]);
+  }, [name]);
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -114,7 +105,7 @@ export default function Home() {
           <Card className="border-2" style={{ borderColor: "hsl(180.85, 61.74%, 22.55%)" }}>
             <CardHeader className="text-center">
               <img src="/loteria.png" alt="Lotería Logo" className="h-140 w-360" />
-              <CardDescription className="pt-2 font-lato font-regular">Ingresa tu nombre y el código de la sala para jugar.</CardDescription>
+              <CardDescription className="pt-2 font-lato font-regular">Ingresa tu nombre para unirte a la sala común.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleJoinRoom} className="space-y-6">
@@ -129,17 +120,7 @@ export default function Home() {
                     className="text-base"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="room" className="text-base">Código de sala</Label>
-                  <Input
-                    id="room"
-                    value={room}
-                    onChange={(e) => setRoomState(e.target.value.toUpperCase())}
-                    placeholder="Ej. JUEGO123"
-                    required
-                    className="text-base"
-                  />
-                </div>
+
                 <Button type="submit" className="w-full" size="lg">
                   <Gamepad2 className="mr-2" />
                   Entrar a la sala
@@ -178,7 +159,7 @@ export default function Home() {
       <RoomFullModal
         open={showRoomFullModal}
         onClose={() => setShowRoomFullModal(false)}
-        roomId={room}
+        roomId={DEFAULT_ROOM_ID}
         maxPlayers={MAX_PLAYERS}
       />
     </div>
