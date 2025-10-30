@@ -20,7 +20,7 @@ interface RoomFullModalProps {
   maxPlayers?: number;
 }
 
-export function RoomFullModal({ open, onClose, roomId, maxPlayers = 25 }: RoomFullModalProps) {
+export function RoomFullModal({ open, onClose, roomId, maxPlayers = 100 }: RoomFullModalProps) {
   const router = useRouter();
 
   return (
