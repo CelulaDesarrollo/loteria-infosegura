@@ -15,14 +15,12 @@ interface PlayerListProps {
   players: Record<string, PlayerState>;
   currentPlayerName: string;
   hostName: string;
-  roomId: string;
 }
 
 export function PlayerList({
   players,
   currentPlayerName,
   hostName,
-  roomId,
 }: PlayerListProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const playerArray = Object.values(players);
@@ -30,19 +28,13 @@ export function PlayerList({
   return (
     <Card>
       <CardHeader>
-        <div className="mb-2 text-sm text-muted-foreground text-center text-[clamp(10px,5vw,16px)]">
-          Sala de Juego:{" "}
-          <span className="font-bold text-primary">{roomId}</span>
-        </div>
-
-        {/* Encabezado con botón toggle */}
+        {/* Header simplified: removed room display */}
         <CardTitle
           className="
             flex flex-wrap items-center justify-center text-center gap-3
             sm:flex-nowrap
           "
         >
-          {/* Bloque del ícono y texto */}
           <div
             className="flex items-center justify-center gap-3 font-semibold"
             style={{ fontSize: "clamp(10px, 5vw, 14px)" }}
@@ -65,7 +57,6 @@ export function PlayerList({
             )}
           </button>
         </CardTitle>
-
       </CardHeader>
 
       <CardContent>

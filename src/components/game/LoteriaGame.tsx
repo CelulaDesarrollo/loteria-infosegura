@@ -212,7 +212,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
             calledCardIds: newCalledCardIds,
           },
         });
-      }, 3500); // <-- 3.5 segundos entre cartas CAMBIAR
+      }, 5000); // <-- 3.5 segundos entre cartas CAMBIAR
     }
 
     return () => {
@@ -364,7 +364,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
                 players={allPlayers}
                 currentPlayerName={playerName}
                 hostName={gameState.host || ""}
-                roomId={roomId}
+                // roomId removed
               />
 
               {/* Botones de control del juego */}
