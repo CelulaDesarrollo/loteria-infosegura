@@ -129,7 +129,13 @@ export default function Home() {
                   <Input
                     id="name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      e.target.setCustomValidity(""); // limpia el mensaje previo
+                      setName(e.target.value);
+                    }}
+                    onInvalid={(e: React.FormEvent<HTMLInputElement>) => {
+                      (e.target as HTMLInputElement).setCustomValidity("Por favor, ingresa un nombre.");
+                    }}
                     placeholder="Ej. El Valiente"
                     required
                     className="text-base"
