@@ -3,64 +3,56 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Gamepad2, ClipboardPen } from "lucide-react";
+import { BookOpen, Gamepad2, Loader2 } from "lucide-react";
 import { getRoom, setRoom, updateRoom } from "@/lib/firebaseRoom";
 import { generateBoard } from "@/lib/loteria";
 import { ref, onDisconnect } from "firebase/database";
 import { database } from "@/lib/firebase";
-import { RoomFullModal } from "@/components/game/RoomFullModal"; 
+import { RoomFullModal } from "@/components/game/RoomFullModal";
 import { NameExistsModal } from "@/components/game/NameExistsModal";
 
-// Función para limpiar el código de sala de caracteres prohibidos por Firebase
-function sanitizeRoomId(roomId: string) {
-  return roomId.replace(/[.#$\[\]]/g, "_");
-}
+const DEFAULT_ROOM_ID = "main_loteria"; // Sala común
+const MAX_PLAYERS = 25; // Límite de jugadores
 
 export default function Home() {
   const [name, setName] = useState("");
-  const [room, setRoomState] = useState("");
   const [showRoomFullModal, setShowRoomFullModal] = useState(false);
   const [showNameExistsModal, setShowNameExistsModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const MAX_PLAYERS = 25; // Límite de jugadores por sala
-
   const router = useRouter();
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading) return; // evita clics múltiples
-    setIsLoading(true);
+    if (isLoading) return; // Evita clics múltiples
 
-    if (name.trim() && room.trim()) {
-      if (/[.#$\[\]]/.test(room.trim())) {
-        alert("El código de sala no puede contener los caracteres . # $ [ ]");
-        return;
-      }
-      const roomId = sanitizeRoomId(room.trim());
+    if (name.trim()) {
+      setIsLoading(true);
+      const roomId = DEFAULT_ROOM_ID;
       const playerName = name.trim();
       const roomData = await getRoom(roomId);
 
-      // valida límite de jugadores si la sala existe
       const playersObj = roomData?.players ?? {};
       const currentCount = Object.keys(playersObj).length;
+
+      // 🚫 Límite de jugadores alcanzado
       if (currentCount >= MAX_PLAYERS) {
         setShowRoomFullModal(true);
         setIsLoading(false);
         return;
       }
 
-      // valida nombre duplicado
+      // 🚫 Nombre duplicado
       if (roomData && roomData.players && roomData.players[playerName]) {
         setShowNameExistsModal(true);
         setIsLoading(false);
         return;
       }
 
-      // Si la sala no existe, créala
+      // 🧩 Si la sala no existe, créala
       if (!roomData) {
         await setRoom(roomId, {
           players: {
@@ -68,8 +60,8 @@ export default function Home() {
               name: playerName,
               isOnline: true,
               board: generateBoard(),
-              markedIndices: []
-            }
+              markedIndices: [],
+            },
           },
           gameState: {
             host: playerName,
@@ -77,12 +69,12 @@ export default function Home() {
             winner: null,
             deck: [],
             calledCardIds: [],
-            timestamp: Date.now()
-          }
+            timestamp: Date.now(),
+          },
         });
       } else {
-        // Si existe, agrega el jugador con board y markedIndices
-        const newHost = roomData.gameState?.host || playerName; // 
+        // 🧩 Si ya existe, agregar jugador
+        const newHost = roomData.gameState?.host || playerName;
         await updateRoom(roomId, {
           players: {
             ...roomData.players,
@@ -90,13 +82,13 @@ export default function Home() {
               name: playerName,
               isOnline: true,
               board: generateBoard(),
-              markedIndices: []
-            }
+              markedIndices: [],
+            },
           },
           gameState: {
             ...roomData.gameState,
             host: newHost,
-          }
+          },
         });
       }
 
@@ -104,26 +96,32 @@ export default function Home() {
     }
   };
 
+  // Desconexión automática del jugador
   useEffect(() => {
-    const roomId = sanitizeRoomId(room.trim());
     const playerName = name.trim();
-    if (roomId && playerName) {
-      const playerRef = ref(database, `rooms/${roomId}/players/${playerName}`);
-      // Elimina al jugador si se desconecta (funciona incluso si se apaga la compu)
+    if (playerName) {
+      const playerRef = ref(database, `rooms/${DEFAULT_ROOM_ID}/players/${playerName}`);
       onDisconnect(playerRef).remove();
     }
-  }, [room, name]);
+  }, [name]);
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Header />
+
       <main className="flex-grow container mx-auto p-4 md:p-6 flex items-center justify-center">
         <div className="w-full max-w-md">
-          <Card className="border-2" style={{ borderColor: "hsl(180.85, 61.74%, 22.55%)" }}>
+          <Card
+            className="border-2"
+            style={{ borderColor: "hsl(180.85, 61.74%, 22.55%)" }}
+          >
             <CardHeader className="text-center">
               <img src="/loteria.png" alt="Lotería Logo" className="h-140 w-360" />
-              <CardDescription className="pt-2 font-lato font-regular">Ingresa tu nombre y el código de la sala para jugar.</CardDescription>
+              <CardDescription className="pt-2 font-lato font-regular">
+                Ingresa tu nombre para unirte a la sala común.
+              </CardDescription>
             </CardHeader>
+
             <CardContent>
               <form onSubmit={handleJoinRoom} className="space-y-6">
                 <div className="space-y-2">
@@ -137,59 +135,75 @@ export default function Home() {
                     className="text-base"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="room" className="text-base">Código de sala</Label>
-                  <Input
-                    id="room"
-                    value={room}
-                    onChange={(e) => setRoomState(e.target.value.toUpperCase())}
-                    placeholder="Ej. JUEGO123"
-                    required
-                    className="text-base"
-                  />
-                </div>
-                <Button type="submit" className="w-full" size="lg">
-                  <Gamepad2 className="mr-2" />
-                  Entrar a la sala
-                </Button>
 
+                <Button
+                  type="submit"
+                  className="w-full"
+                  size="lg"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Cargando...
+                    </>
+                  ) : (
+                    <>
+                      <Gamepad2 className="mr-2" />
+                      Entrar a la sala
+                    </>
+                  )}
+                </Button>
               </form>
-              {/* Botón para Glosario, fuera del form para redirigirte */}
+
+              {/* Glosario */}
               <div className="my-4 border-t border-muted">
-                <Button className="w-full" variant="outline" size="lg" onClick={() => router.push("/glosary")}>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => router.push("/glosary")}
+                >
                   <BookOpen className="mr-2" />
                   Glosario de cartas
                 </Button>
               </div>
 
-              {/* Botón para Instructivo */}
+              {/* Instructivo */}
               <div className="my-4 border-t border-muted">
-                <Button className="w-full" variant="outline" size="lg" onClick={() => router.push("/instructions")}>
-                  <img src="/LoteriaSI-InterfazIconoInstructivo.svg" alt="Instructivo Icon" className="h-4 w-4 inline-block mr-2" /> 
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => router.push("/instructions")}
+                >
+                  <img
+                    src="/LoteriaSI-InterfazIconoInstructivo.svg"
+                    alt="Instructivo Icon"
+                    className="h-4 w-4 inline-block mr-2"
+                  />
                   Instructivo del juego
                 </Button>
               </div>
-
             </CardContent>
           </Card>
         </div>
       </main>
 
-      {/* Footer fijo al final de la página */}
       <footer className="text-center p-4 text-muted-foreground text-sm">
         <div className="flex items-center justify-center gap-2">
-          <img src="/icono-CDC.png" alt="Célula de Desarrollo" className="h-7 " />
+          <img src="/icono-CDC.png" alt="Célula de Desarrollo" className="h-7" />
           <p>Elaborado por Célula de Desarrollo de Contenidos DGTI Xalapa.</p>
         </div>
       </footer>
-      {/* Modal de sala llena */}
+
+      {/* Modales */}
       <RoomFullModal
         open={showRoomFullModal}
         onClose={() => setShowRoomFullModal(false)}
-        roomId={room}
+        roomId={DEFAULT_ROOM_ID}
         maxPlayers={MAX_PLAYERS}
       />
-      {/* Modal de nombre existente */}
       <NameExistsModal
         open={showNameExistsModal}
         onClose={() => setShowNameExistsModal(false)}
