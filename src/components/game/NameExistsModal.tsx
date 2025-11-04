@@ -46,7 +46,7 @@ export function NameExistsModal({ open, onClose }: NameExistsModalProps) {
                         Nombre ya en uso
                     </AlertDialogTitle>
                     <AlertDialogDescription className="text-center text-sm text-muted-foreground mt-2">
-                        Ya existe un jugador con ese nombre en la sala. Por favor, elige otro nombre para continuar.
+                        Ya existe un jugador con ese nombre en el juego. Por favor, elige otro nombre para continuar.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
 
