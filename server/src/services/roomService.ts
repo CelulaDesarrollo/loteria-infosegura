@@ -1,73 +1,120 @@
-import { dbGetAsync, dbRunAsync } from '../config/database';
+import { dbGetAsync, dbRunAsync, dbAllAsync } from '../config/database';
 import { Room, Player } from '../types/game';
 
 interface DBRoom {
   data: string;
 }
 
+const MAX_PLAYERS = 100; // ajustar si quieres
+
 export class RoomService {
   static async getRoom(roomId: string): Promise<Room | null> {
-    try {
-      const result = (await dbGetAsync<DBRoom>('SELECT data FROM rooms WHERE id = ?', [roomId])) as DBRoom | undefined;
-      return result ? JSON.parse(result.data) : null;
-    } catch (error) {
-      console.error('Error getting room:', error);
-      return null;
-    }
+    const result = (await dbGetAsync<DBRoom>('SELECT data FROM rooms WHERE id = ?', [roomId])) as DBRoom | undefined;
+    return result ? (JSON.parse(result.data) as Room) : null;
   }
 
   static async createOrUpdateRoom(roomId: string, roomData: Room): Promise<void> {
-    try {
-      await dbRunAsync(
-        'INSERT OR REPLACE INTO rooms (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
-        [roomId, JSON.stringify(roomData)]
-      );
-    } catch (error) {
-      console.error('Error updating room:', error);
-      throw error;
+    await dbRunAsync(
+      'INSERT OR REPLACE INTO rooms (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+      [roomId, JSON.stringify(roomData)]
+    );
+  }
+
+  // limpia todas las listas de players en la base de datos (mantiene gameState pero vacía host)
+  static async clearAllPlayers(): Promise<void> {
+    const rows = await dbAllAsync<{ id: string; data: string }>('SELECT id, data FROM rooms', []);
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.data) as Room;
+        if (parsed) {
+          parsed.players = {}; // vaciar players históricos
+          if (parsed.gameState) parsed.gameState.host = ''; // limpiar host
+          await dbRunAsync('UPDATE rooms SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [JSON.stringify(parsed), row.id]);
+        }
+      } catch (e) {
+        // ignora filas malformadas
+        console.error('clearAllPlayers: error parsing row', row.id, e);
+      }
     }
   }
 
-  static async addPlayer(roomId: string, playerName: string, playerData: Player): Promise<boolean> {
-    try {
-      const room = await this.getRoom(roomId);
-      
-      if (!room) {
-        const newRoom: Room = {
-          players: {
-            [playerName]: playerData
-          },
-          gameState: {
-            host: playerName,
-            isGameActive: false,
-            winner: null,
-            deck: [],
-            calledCardIds: [],
-            timestamp: Date.now()
-          }
-        };
-        await this.createOrUpdateRoom(roomId, newRoom);
-        return true;
-      }
+  // añade jugador con retorno claro; si host está vacío se asigna al primer jugador activo
+  static async addPlayer(roomId: string, playerName: string, playerData: Player): Promise<{ added: boolean; reason?: 'name_exists' | 'full' }> {
+    const nameKey = playerName.trim();
+    let room = await this.getRoom(roomId);
 
-      room.players[playerName] = playerData;
-      await this.createOrUpdateRoom(roomId, room);
-      return true;
-    } catch (error) {
-      console.error('Error adding player:', error);
-      return false;
+    if (!room) {
+      // crear sala nueva con este único jugador
+      const newRoom: Room = {
+        players: {
+          [nameKey]: playerData
+        },
+        gameState: {
+          host: nameKey,
+          isGameActive: false,
+          winner: null,
+          deck: [],
+          calledCardIds: [],
+          timestamp: Date.now()
+        }
+      };
+      await this.createOrUpdateRoom(roomId, newRoom);
+      return { added: true };
     }
+
+    // validaciones case-insensitive
+    const existingKeys = Object.keys(room.players || {});
+    const existingKey = existingKeys.find(
+      k => k.trim().toLowerCase() === nameKey.toLowerCase()
+    );
+
+    if (existingKey) {
+      // si el jugador ya existe, lo marcamos como online y actualizamos sus datos
+      room.players[existingKey] = {
+        ...room.players[existingKey],
+        ...playerData,
+        isOnline: true,
+      };
+      await this.createOrUpdateRoom(roomId, room);
+      return { added: true };
+    }
+
+    if (existingKeys.length >= MAX_PLAYERS) {
+      return { added: false, reason: 'full' };
+    }
+
+    // añadir jugador; si host está vacío, asignarlo a este jugador
+    room.players[nameKey] = playerData;
+    if (!room.gameState) {
+      room.gameState = {
+        host: nameKey,
+        isGameActive: false,
+        winner: null,
+        deck: [],
+        calledCardIds: [],
+        timestamp: Date.now()
+      };
+    } else if (!room.gameState.host || room.gameState.host.trim() === '') {
+      room.gameState.host = nameKey;
+    }
+
+    await this.createOrUpdateRoom(roomId, room);
+    return { added: true };
   }
 
   static async removePlayer(roomId: string, playerName: string): Promise<void> {
-    try {
-      const room = await this.getRoom(roomId);
-      if (room && room.players[playerName]) {
-        delete room.players[playerName];
-        await this.createOrUpdateRoom(roomId, room);
-      }
-    } catch (error) {
-      console.error('Error removing player:', error);
+    const room = await this.getRoom(roomId);
+    if (!room) return;
+    const key = Object.keys(room.players || {}).find(k => k.trim().toLowerCase() === playerName.trim().toLowerCase());
+    if (!key) return;
+    delete room.players[key];
+
+    // si el host ya no existe, reasignar host al primer jugador disponible o dejar vacío
+    if (room.gameState && room.gameState.host && !(room.players && room.players[room.gameState.host])) {
+      const remaining = Object.keys(room.players || {});
+      room.gameState.host = remaining.length > 0 ? remaining[0] : '';
     }
+
+    await this.createOrUpdateRoom(roomId, room);
   }
 }

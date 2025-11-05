@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { LoteriaGame } from "@/components/game/LoteriaGame";
-import { gameSocket } from "@/lib/gameSocket"; // Importar gameSocket
+import { gameSocket } from "@/lib/gameSocket";
 
 export default function RoomPage() {
   const searchParams = useSearchParams();
@@ -18,21 +18,32 @@ export default function RoomPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !name) return;
 
-    // Unirse a la sala usando gameSocket
-    gameSocket.joinRoom(roomId, name, { name, isOnline: true })
-      .then((response) => {
-        if (response.success) {
-          setRoomData(response.room);
-          setLoading(false);
-        } else {
-          router.replace("/");
-        }
-      });
+    let mounted = true;
+    (async () => {
+      const res = await gameSocket.joinRoom(roomId, name, { name, isOnline: true, board: [], markedIndices: [] });
+      if (!mounted) return;
+      if (res.success) {
+        setRoomData(res.room);
+        setLoading(false);
+      } else {
+        console.warn('join failed', res.error);
+        router.replace("/");
+      }
+    })();
 
     return () => {
-      gameSocket.disconnect(); // Desconectar al salir
+      mounted = false;
+      // no desconectamos el socket globalmente acá (no llamar gameSocket.disconnect())
+      // en su lugar avisamos al servidor que el jugador abandona la sala
+      if (roomId && name) {
+        try {
+          gameSocket.leaveRoom(roomId, name);
+        } catch (e) {
+          // ignore
+        }
+      }
     };
   }, [roomId, name, router]);
 

@@ -1,84 +1,81 @@
-import Fastify from 'fastify';
-import fastifySocketIO from 'fastify-socket.io';
-import fastifyCors from '@fastify/cors';
-import { Server } from 'socket.io';
-import { RoomService } from './services/roomService';
-import { Player } from './types/game';
+import Fastify from "fastify";
+import fastifyCors from "@fastify/cors";
+import fastifySocketIO from "fastify-socket.io";
+import { Server } from "socket.io";
+import { RoomService } from "./services/roomService";
+import { Player } from "./types/game";
 
-const fastify = Fastify({ logger: true });
+async function startServer() {
+  const fastify = Fastify({ logger: true });
 
-// Configurar CORS
-fastify.register(fastifyCors, {
-  origin: ['http://localhost:3000'],
-  credentials: true
-});
+  // 1️⃣ CORS para endpoints normales
+  await fastify.register(fastifyCors, {
+    origin: ["http://localhost:3000"],
+    credentials: true,
+  });
 
-// Configurar Socket.IO
-fastify.register(fastifySocketIO);
+  // 2️⃣ Socket.IO con CORS explícito
+  await fastify.register(fastifySocketIO, {
+    cors: {
+      origin: ["http://localhost:3000"],
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+  });
 
-// Declarar tipo para io (opcional, evita cast en varios lugares)
-declare module 'fastify' {
-  interface FastifyInstance {
-    io: Server
-  }
-}
+  // 3️⃣ Configurar handlers cuando Fastify está listo
+  fastify.ready((err) => {
+    if (err) throw err;
+    const io = fastify.io as Server;
 
-// Ruta de salud
-fastify.get('/health', async () => {
-  return { status: 'ok' };
-});
+    io.on("connection", (socket) => {
+      console.log("Cliente conectado:", socket.id);
 
-// Ruta raíz simple
-fastify.get('/', async () => ({ status: 'ok', message: 'Loteria server' }));
+      socket.on("joinRoom", async ({ roomId, playerName, playerData }) => {
+        try {
+          const result = await RoomService.addPlayer(roomId, playerName, playerData);
+          if (!result.added) {
+            socket.emit("joinError", {
+              code: result.reason || "unknown",
+              message: result.reason === "name_exists" ? "El nombre ya existe" : "Sala llena",
+            });
+            return;
+          }
 
-// Configurar WebSockets
-fastify.ready(err => {
-  if (err) throw err;
+          socket.data.roomId = roomId;
+          socket.data.playerName = playerName;
 
-  const io = (fastify as any).io as Server;
-
-  io.on('connection', (socket) => {
-    console.log('Cliente conectado:', socket.id);
-
-    socket.on('joinRoom', async ({ roomId, playerName, playerData }: {
-      roomId: string;
-      playerName: string;
-      playerData: Player;
-    }) => {
-      try {
-        const success = await RoomService.addPlayer(roomId, playerName, playerData);
-        
-        if (success) {
           socket.join(roomId);
           const room = await RoomService.getRoom(roomId);
-          console.log('Room data after joining:', room); // Log de la sala
-          socket.emit('roomJoined', room);
-          socket.to(roomId).emit('playerJoined', { playerName, playerData });
-        } else {
-          console.error('Failed to add player:', playerName); // Log de error
-          socket.emit('error', { message: 'No se pudo unir al jugador' });
+          socket.emit("roomJoined", room);
+          socket.to(roomId).emit("playerJoined", { playerName, playerData });
+        } catch (err) {
+          console.error("Error in joinRoom:", err);
+          socket.emit("joinError", { code: "server_error", message: "Error al unirse a la sala" });
         }
-      } catch (error) {
-        console.error('Error al unirse a la sala:', error);
-        socket.emit('error', { message: 'Error al unirse a la sala' });
-      }
-    });
+      });
 
-    socket.on('disconnect', () => {
-      console.log('Cliente desconectado:', socket.id);
+      socket.on("disconnect", async () => {
+        const { roomId, playerName } = socket.data;
+        console.log("Cliente desconectado:", socket.id, roomId, playerName);
+        if (roomId && playerName) {
+          await RoomService.removePlayer(roomId, playerName);
+          io.to(roomId).emit("playerLeft", { playerName });
+        }
+      });
     });
   });
+
+  // 4️⃣ Iniciar servidor
+  await RoomService.clearAllPlayers();
+  console.log("Se limpiaron players históricos en la DB.");
+
+  await fastify.listen({ port: 3001, host: "0.0.0.0" });
+  console.log("Servidor corriendo en http://localhost:3001");
+}
+
+// Ejecutar función principal
+startServer().catch((err) => {
+  console.error("❌ Error al iniciar el servidor:", err);
+  process.exit(1);
 });
-
-// Iniciar servidor
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3001, host: '0.0.0.0' });
-    console.log('Servidor corriendo en http://localhost:3001');
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
