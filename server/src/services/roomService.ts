@@ -39,44 +39,55 @@ export class RoomService {
   }
 
   // añade jugador con retorno claro; si host está vacío se asigna al primer jugador activo
-  static async addPlayer(roomId: string, playerName: string, playerData: Player): Promise<{ added: boolean; reason?: 'name_exists' | 'full' }> {
+  static async addPlayer(
+    roomId: string,
+    playerName: string,
+    playerData: Player
+  ): Promise<{
+    added: boolean;
+    reconnected?: boolean;
+    reason?: 'name_exists' | 'name_in_use' | 'full'
+  }> {
     const nameKey = playerName.trim();
     let room = await this.getRoom(roomId);
 
     if (!room) {
-      // crear sala nueva con este único jugador
       const newRoom: Room = {
-        players: {
-          [nameKey]: playerData
-        },
+        players: { [nameKey]: playerData },
         gameState: {
           host: nameKey,
           isGameActive: false,
           winner: null,
           deck: [],
           calledCardIds: [],
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       };
       await this.createOrUpdateRoom(roomId, newRoom);
       return { added: true };
     }
 
-    // validaciones case-insensitive
     const existingKeys = Object.keys(room.players || {});
     const existingKey = existingKeys.find(
-      k => k.trim().toLowerCase() === nameKey.toLowerCase()
+      (k) => k.trim().toLowerCase() === nameKey.toLowerCase()
     );
 
     if (existingKey) {
-      // si el jugador ya existe, lo marcamos como online y actualizamos sus datos
-      room.players[existingKey] = {
-        ...room.players[existingKey],
-        ...playerData,
-        isOnline: true,
-      };
-      await this.createOrUpdateRoom(roomId, room);
-      return { added: true };
+      const existingPlayer = room.players[existingKey];
+
+      // Si el jugador está offline, es una reconexión válida
+      if (!existingPlayer.isOnline) {
+        room.players[existingKey] = {
+          ...existingPlayer,
+          ...playerData,
+          isOnline: true,
+        };
+        await this.createOrUpdateRoom(roomId, room);
+        return { added: true, reconnected: true };
+      }
+
+      // Si ya está online, es un duplicado → rechazamos
+      return { added: false, reason: 'name_in_use' };
     }
 
     if (existingKeys.length >= MAX_PLAYERS) {
@@ -92,7 +103,7 @@ export class RoomService {
         winner: null,
         deck: [],
         calledCardIds: [],
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } else if (!room.gameState.host || room.gameState.host.trim() === '') {
       room.gameState.host = nameKey;
@@ -101,6 +112,7 @@ export class RoomService {
     await this.createOrUpdateRoom(roomId, room);
     return { added: true };
   }
+
 
   static async removePlayer(roomId: string, playerName: string): Promise<void> {
     const room = await this.getRoom(roomId);
