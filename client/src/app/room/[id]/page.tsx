@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
-import { listenRoom, handlePlayerLeave, getRoom } from "@/lib/firebaseRoom";
 import { Header } from "@/components/Header";
 import { LoteriaGame } from "@/components/game/LoteriaGame";
-import { ref, onDisconnect } from "firebase/database";
-import { database } from "@/lib/firebase";
+import { gameSocket } from "@/lib/gameSocket"; // Importar gameSocket
 
 export default function RoomPage() {
   const searchParams = useSearchParams();
@@ -21,12 +19,22 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (!roomId) return;
-    const unsubscribe = listenRoom(roomId, (data) => {
-      setRoomData(data);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [roomId]);
+
+    // Unirse a la sala usando gameSocket
+    gameSocket.joinRoom(roomId, name, { name, isOnline: true })
+      .then((response) => {
+        if (response.success) {
+          setRoomData(response.room);
+          setLoading(false);
+        } else {
+          router.replace("/");
+        }
+      });
+
+    return () => {
+      gameSocket.disconnect(); // Desconectar al salir
+    };
+  }, [roomId, name, router]);
 
   // Si no hay nombre, redirige a la página principal
   useEffect(() => {
@@ -41,35 +49,6 @@ export default function RoomPage() {
       router.replace("/");
     }
   }, [loading, roomData, name, router]);
-
-  useEffect(() => {
-    if (!roomId || !name) return;
-    const playerRef = ref(database, `rooms/${roomId}/players/${name}`);
-    onDisconnect(playerRef).remove();
-
-    // Cuando el componente se desmonta (jugador se va), reasigna anfitrión si es necesario
-    return () => {
-      getRoom(roomId).then(roomData => {
-        if (roomData) {
-          handlePlayerLeave(roomId, name, roomData);
-        }
-      });
-    };
-  }, [roomId, name]);
-
-  useEffect(() => {
-    if (!roomData || !roomData.players || !roomData.gameState) return;
-    const hostName = roomData.gameState.host;
-    const playerNames = Object.keys(roomData.players);
-
-    // Si el anfitrión actual ya no está en la lista de jugadores, reasigna
-    if (hostName && !playerNames.includes(hostName)) {
-      // Solo el primer jugador conectado ejecuta la reasignación para evitar conflictos
-      if (name === playerNames[0]) {
-        handlePlayerLeave(roomId, hostName, roomData);
-      }
-    }
-  }, [roomData, roomId, name]);
 
   if (loading || !name || !roomData || !roomData.players || !roomData.players[name]) {
     return (
@@ -89,11 +68,6 @@ export default function RoomPage() {
           roomData={roomData}
         />
       </main>
-      {/* 
-      <footer className="text-center p-4 text-muted-foreground text-sm">
-        <p>Sala de Juego: <span className="font-bold text-primary">{roomId}</span> | Jugador: <span className="font-bold text-primary">{name}</span></p>
-      </footer>
-      */}
     </div>
   );
 }

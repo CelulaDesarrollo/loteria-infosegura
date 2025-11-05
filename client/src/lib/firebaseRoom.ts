@@ -1,4 +1,4 @@
-import { database } from "./firebase";
+/*import { database } from "./firebase";
 import { ref, set, get, onValue, update, off, runTransaction } from "firebase/database";
 
 // Escuchar cambios en la sala en tiempo real
@@ -116,3 +116,5 @@ export async function joinRoomIfSpace(
 
   return { success: true };
 }
+
+*/

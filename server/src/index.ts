@@ -51,9 +51,11 @@ fastify.ready(err => {
         if (success) {
           socket.join(roomId);
           const room = await RoomService.getRoom(roomId);
+          console.log('Room data after joining:', room); // Log de la sala
           socket.emit('roomJoined', room);
           socket.to(roomId).emit('playerJoined', { playerName, playerData });
         } else {
+          console.error('Failed to add player:', playerName); // Log de error
           socket.emit('error', { message: 'No se pudo unir al jugador' });
         }
       } catch (error) {

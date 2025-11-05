@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card as CardType, generateBoard, createDeck, checkWin, CARDS } from "@/lib/loteria";
 import { Play, RotateCw, LogOut, Volume2, VolumeOff } from "lucide-react";
 import { PlayerList } from "./PlayerList";
-import { updateRoom } from "@/lib/firebaseRoom";
+import { gameSocket } from "@/lib/gameSocket";
 import {
   Select,
   SelectTrigger,
@@ -36,8 +36,10 @@ const GAME_MODE_LABELS: Record<string, string> = {
   square: "Cuadrado",
 };
 
-export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) {
+export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: LoteriaGameProps) {
   const [ranking, setRanking] = useState<{ name: string; seleccionadas: number }[]>([]);
+  const [roomData, setRoomData] = useState(initialRoomData);
+
   const gameState = roomData?.gameState ?? null;
   const allPlayers = roomData?.players ?? {};
   const rawPlayer = allPlayers[playerName];
@@ -57,6 +59,38 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
   const [cantaditoActivo, setCantaditoActivo] = useState(false);
 
   const [showModeModal, setShowModeModal] = useState(false); // <-- añadido
+
+  // Suscribirse a actualizaciones
+  useEffect(() => {
+    const unsubscribeUpdate = gameSocket.onGameUpdate((newState) => {
+      setRoomData(prev => ({ ...prev, gameState: newState }));
+    });
+
+    const unsubscribeJoin = gameSocket.onPlayerJoined(({ playerName, playerData }) => {
+      setRoomData(prev => ({
+        ...(prev || {}),
+        players: {
+          ...(prev.players || {}),
+          [playerName]: playerData
+        }
+      }));
+    });
+
+    const unsubscribeLeft = gameSocket.onPlayerLeft(({ playerName }) => {
+      setRoomData(prev => {
+        const newPlayers = { ...prev.players };
+        delete newPlayers[playerName];
+        return { ...prev, players: newPlayers };
+      });
+    });
+
+    // Limpieza al desmontar
+    return () => {
+      unsubscribeUpdate();
+      unsubscribeJoin();
+      unsubscribeLeft();
+    };
+  }, []);
 
   // Actualiza ranking cuando hay ganador
   useEffect(() => {
@@ -102,7 +136,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
         isGameActive = false;
       }
 
-      await updateRoom(roomId, {
+      await gameSocket.emit("updateRoom", roomId, {
         players: updatedPlayers,
         gameState: {
           ...roomData.gameState,
@@ -131,7 +165,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
       updatedPlayers[pName].markedIndices = [];
     });
 
-    await updateRoom(roomId, {
+    await gameSocket.emit("updateRoom", roomId, {
       players: updatedPlayers,
       gameState: {
         ...roomData.gameState,
@@ -159,7 +193,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
       updatedPlayers[pName].markedIndices = [];
     });
 
-    await updateRoom(roomId, {
+    await gameSocket.emit("updateRoom", roomId, {
       players: updatedPlayers,
       gameState: {
         host: playerName,
@@ -206,7 +240,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
           ...gameState.calledCardIds,
           gameState.deck[nextIndex].id,
         ];
-        await updateRoom(roomId, {
+        await gameSocket.emit("updateRoom", roomId, {
           gameState: {
             ...gameState,
             calledCardIds: newCalledCardIds,
@@ -269,7 +303,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
         markedIndices: [],
       }
     };
-    await updateRoom(roomId, {
+    await gameSocket.emit("updateRoom", roomId, {
       players: updatedPlayers,
     });
     setRanking([]);
@@ -358,17 +392,17 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
           {/* PLAYER LIST - izquierda */}
           <div className="flex justify-center col-span-1 md:col-span-3 gap-3">
             {/* Contenedor responsivo para ajustar tamaño según el viewport */}
-            <div className="w-[clamp(160px,18vw,260px)] flex flex-col gap-3"> 
+            <div className="w-[clamp(160px,18vw,260px)] flex flex-col gap-3">
               {/* Lista de jugadores */}
               <PlayerList
                 players={allPlayers}
                 currentPlayerName={playerName}
                 hostName={gameState.host || ""}
-                // roomId removed
+              // roomId removed
               />
 
               {/* Botones de control del juego */}
-              <div className="flex flex-col gap-3"> 
+              <div className="flex flex-col gap-3">
                 {/* Solo lo ve el anfitrión */}
                 {isHost && (
                   <>
@@ -390,7 +424,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
                             updatedPlayers[pName].markedIndices = [];
                           });
 
-                          await updateRoom(roomId, {
+                          await gameSocket.emit("updateRoom", roomId, {
                             players: updatedPlayers,
                             gameState: {
                               ...gameState,
@@ -415,7 +449,7 @@ export function LoteriaGame({ roomId, playerName, roomData }: LoteriaGameProps) 
                         onValueChange={async (value) => {
                           setSelectedMode(value);
                           setFirstCard(null); // resetea la carta inicial al cambiar modo
-                          await updateRoom(roomId, {
+                          await gameSocket.emit("updateRoom", roomId, {
                             gameState: {
                               ...roomData.gameState,
                               gameMode: value,
