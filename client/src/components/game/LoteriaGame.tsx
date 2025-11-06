@@ -40,6 +40,9 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   const [ranking, setRanking] = useState<{ name: string; seleccionadas: number }[]>([]);
   const [roomData, setRoomData] = useState(initialRoomData);
 
+  // Evita recomputar ranking después de limpiar markedIndices
+  const lastWinnerRef = useRef<string | null>(null);
+
   const gameState = roomData?.gameState ?? null;
   const allPlayers = roomData?.players ?? {};
   const rawPlayer = allPlayers[playerName];
@@ -94,16 +97,36 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
   // Actualiza ranking cuando hay ganador
   useEffect(() => {
-    if (roomData?.gameState?.winner) {
-      const rankingArr = Object.values(roomData.players)
-        .map((p: any) => ({
-          name: p.name,
-          seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
-        }))
-        .sort((a, b) => b.seleccionadas - a.seleccionadas);
-      setRanking(rankingArr);
+    const winner = roomData?.gameState?.winner;
+    if (!winner) {
+      lastWinnerRef.current = null;
+      return;
     }
-  }, [roomData]);
+    // solo calcular si aún no lo hicimos para este ganador
+    if (lastWinnerRef.current === winner) return;
+    lastWinnerRef.current = winner;
+
+    const rankingArr = Object.values(roomData.players || {})
+      .map((p: any) => ({
+        name: p.name,
+        seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
+      }))
+      .sort((a, b) => b.seleccionadas - a.seleccionadas);
+    setRanking(rankingArr);
+  }, [roomData?.gameState?.winner, roomData?.players]);
+
+  // Evitar warning aria-hidden: quitar foco antes de abrir modal de ganador
+  useEffect(() => {
+    if (roomData?.gameState?.winner) {
+      try {
+        if (document && document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      } catch (e) {
+        /* noop */
+      }
+    }
+  }, [roomData?.gameState?.winner]);
 
   // Marcar carta
   const handleCardClick = async (card: CardType, index: number) => {
@@ -124,6 +147,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
     if (isCalled && !player.markedIndices.includes(index)) {
       const newMarkedIndices = [...player.markedIndices, index].sort((a, b) => a - b);
+      // actualiza solo la marca del jugador local inicialmente
       const updatedPlayers = {
         ...roomData.players,
         [playerName]: { ...player, markedIndices: newMarkedIndices }
@@ -136,21 +160,60 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         isGameActive = false;
       }
 
-      // Optimistic update: mostrar frijolito inmediatamente
-      setRoomData(prev => ({
-        ...(prev || {}),
-        players: updatedPlayers,
-        gameState: { ...(prev?.gameState || {}), winner: winner ?? null, isGameActive }
-      }));
+      if (winner) {
+        // calcular ranking ANTES de limpiar los tableros
+        const rankingArr = Object.values(roomData.players || {})
+          .map((p: any) => ({
+            name: p.name,
+            seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
+          }))
+          .concat([{ name: playerName, seleccionadas: newMarkedIndices.length }])
+          .reduce((acc, cur) => {
+            const exists = acc.find(a => a.name === cur.name);
+            if (!exists) acc.push(cur);
+            return acc;
+          }, [] as { name:string; seleccionadas:number }[])
+          .sort((a,b) => b.seleccionadas - a.seleccionadas);
+        setRanking(rankingArr);
 
-      await gameSocket.emit("updateRoom", roomId, {
-        players: updatedPlayers,
-        gameState: {
-          ...roomData.gameState,
-          winner: winner ?? null,
-          isGameActive,
-        }
-      });
+        // limpiar markedIndices de todos los jugadores (UI + servidor)
+        const clearedPlayers: any = {};
+        Object.keys(roomData.players || {}).forEach(k => {
+          clearedPlayers[k] = { ...roomData.players[k], markedIndices: [] };
+        });
+
+        // Optimistic update: mostrar ganador y tableros limpios
+        setRoomData(prev => ({
+          ...(prev || {}),
+          players: clearedPlayers,
+          gameState: { ...(prev?.gameState || {}), winner: winner ?? null, isGameActive }
+        }));
+
+        await gameSocket.emit("updateRoom", roomId, {
+          players: clearedPlayers,
+          gameState: {
+            ...roomData.gameState,
+            winner: winner ?? null,
+            isGameActive,
+          }
+        });
+      } else {
+        // caso normal: solo marcar al jugador y emitir
+        setRoomData(prev => ({
+          ...(prev || {}),
+          players: updatedPlayers,
+          gameState: { ...(prev?.gameState || {}), winner: winner ?? null, isGameActive }
+        }));
+
+        await gameSocket.emit("updateRoom", roomId, {
+          players: updatedPlayers,
+          gameState: {
+            ...roomData.gameState,
+            winner: winner ?? null,
+            isGameActive,
+          }
+        });
+      }
     }
   };
 

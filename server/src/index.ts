@@ -54,6 +54,10 @@ async function startServer() {
           const room = await RoomService.getRoom(roomId);
           console.log("Unión exitosa, sala:", room);
 
+          // Emitir sala actualizada a todos para sincronizar host/players
+          io.to(roomId).emit("roomUpdated", room);
+          io.to(roomId).emit("gameUpdated", room?.gameState);
+
           socket.emit("roomJoined", room);
           socket.to(roomId).emit("playerJoined", { playerName, playerData });
         } catch (err) {
@@ -67,7 +71,13 @@ async function startServer() {
           console.log("Solicitud de salida:", { roomId, playerName });
           await RoomService.removePlayer(roomId, playerName);
           socket.leave(roomId);
+
+          // Obtener sala actualizada y emitir para que clientes re-hidraten UI (host reassignment)
+          const updated = await RoomService.getRoom(roomId);
           io.to(roomId).emit("playerLeft", { playerName });
+          io.to(roomId).emit("roomUpdated", updated);
+          if (updated?.gameState) io.to(roomId).emit("gameUpdated", updated.gameState);
+
         } catch (err) {
           console.error("Error en leaveRoom:", err);
         }
@@ -81,7 +91,13 @@ async function startServer() {
         if (roomId && playerName) {
           try {
             await RoomService.removePlayer(roomId, playerName);
+
+            // Tras removePlayer, obtener sala y propagar cambios (re-asignación de host, etc.)
+            const updated = await RoomService.getRoom(roomId);
             io.to(roomId).emit("playerLeft", { playerName });
+            io.to(roomId).emit("roomUpdated", updated);
+            if (updated?.gameState) io.to(roomId).emit("gameUpdated", updated.gameState);
+
           } catch (err) {
             console.error("Error al remover jugador en disconnect:", err);
           }
@@ -115,9 +131,21 @@ async function startServer() {
             room.gameState = { ...(room.gameState || {}), ...payload.gameState };
           }
 
+          // Si hay ganador o el juego se desactiva, asegurarse de limpiar las marcas
+          // así todos los clientes recibirán la sala con markedIndices vacíos.
+          const shouldClearMarks =
+            room.gameState?.winner != null ||
+            (payload.gameState && payload.gameState.isGameActive === false);
+
+          if (shouldClearMarks && room.players) {
+            Object.keys(room.players).forEach((k) => {
+              room.players[k] = { ...(room.players[k] || {}), markedIndices: [] };
+            });
+          }
+
           await RoomService.createOrUpdateRoom(roomId, room);
 
-          // Emitir sólo el gameState (el cliente espera gameUpdated → gameState)
+          // Emitir sólo el gameState (el cliente escucha "gameUpdated")
           io.to(roomId).emit("gameUpdated", room.gameState);
           // Emitir también la sala completa por si otros consumidores la necesitan
           io.to(roomId).emit("roomUpdated", room);
@@ -134,6 +162,16 @@ async function startServer() {
           const roomId = payload.roomId;
           const room = (await RoomService.getRoom(roomId)) || { players: {}, gameState: {} as any };
           room.gameState = { ...(room.gameState || {}), ...payload.gameState };
+
+          // Si hay ganador o el juego se desactiva, limpiar marcas
+          const shouldClearMarks =
+            room.gameState?.winner != null || payload.gameState.isGameActive === false;
+          if (shouldClearMarks && room.players) {
+            Object.keys(room.players).forEach((k) => {
+              room.players[k] = { ...(room.players[k] || {}), markedIndices: [] };
+            });
+          }
+
           await RoomService.createOrUpdateRoom(roomId, room);
           io.to(roomId).emit("gameUpdated", room.gameState);
           io.to(roomId).emit("roomUpdated", room);
