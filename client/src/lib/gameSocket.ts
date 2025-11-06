@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 interface PlayerData {
     name: string;
