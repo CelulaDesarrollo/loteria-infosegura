@@ -136,6 +136,13 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         isGameActive = false;
       }
 
+      // Optimistic update: mostrar frijolito inmediatamente
+      setRoomData(prev => ({
+        ...(prev || {}),
+        players: updatedPlayers,
+        gameState: { ...(prev?.gameState || {}), winner: winner ?? null, isGameActive }
+      }));
+
       await gameSocket.emit("updateRoom", roomId, {
         players: updatedPlayers,
         gameState: {
@@ -154,8 +161,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     if (!isHost) return;
 
     if (!selectedMode) {
-      //alert("Debes seleccionar un modo de juego antes de iniciar.");
-      setShowModeModal(true); // <-- ahora abre modal en lugar de alert
+      setShowModeModal(true);
       return;
     }
 
@@ -164,6 +170,21 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     Object.keys(updatedPlayers).forEach(pName => {
       updatedPlayers[pName].markedIndices = [];
     });
+
+    // Optimistic update para que UI inicie juego al instante
+    setRoomData(prev => ({
+      ...(prev || {}),
+      players: updatedPlayers,
+      gameState: {
+        ...(prev?.gameState || {}),
+        deck: newDeck,
+        calledCardIds: [newDeck[0].id],
+        isGameActive: true,
+        winner: null,
+        gameMode: selectedMode,
+        timestamp: Date.now()
+      }
+    }));
 
     await gameSocket.emit("updateRoom", roomId, {
       players: updatedPlayers,
@@ -192,6 +213,23 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       updatedPlayers[pName].board = generateBoard();
       updatedPlayers[pName].markedIndices = [];
     });
+
+    const newState = {
+      host: playerName,
+      isGameActive: false,
+      winner: null,
+      deck: [],
+      calledCardIds: [],
+      gameMode: null,
+      timestamp: Date.now()
+    };
+
+    // Optimistic update
+    setRoomData(prev => ({
+      ...(prev || {}),
+      players: updatedPlayers,
+      gameState: newState
+    }));
 
     await gameSocket.emit("updateRoom", roomId, {
       players: updatedPlayers,
@@ -303,6 +341,13 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         markedIndices: [],
       }
     };
+
+    // Optimistic update: reemplazar tabla local antes de confirmar servidor
+    setRoomData(prev => ({
+      ...(prev || {}),
+      players: updatedPlayers
+    }));
+
     await gameSocket.emit("updateRoom", roomId, {
       players: updatedPlayers,
     });

@@ -5,29 +5,36 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 interface PlayerData {
     name: string;
     isOnline: boolean;
-    board: number[];
-    markedIndices: number[];
+    board: any;
+    markedIndices?: number[];
 }
 
 class GameSocket {
-    private socket: Socket;
+    private socket!: Socket;
     private static instance: GameSocket;
-    private isConnecting: boolean = false;
-    private connectionPromise: Promise<void> | null = null;
-    private lastRoom: any = null; // <-- almacena ultimo room recibido
+    private connecting: boolean = false;
+    private lastRoom: any = null;
 
     private constructor() {
         this.socket = io(BACKEND, {
             transports: ["websocket"],
             autoConnect: false,
             reconnection: true,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
-            reconnectionAttempts: 5
         });
 
-        // Mantener lastRoom actualizado si el servidor emite roomJoined
+        // Mantener lastRoom actualizado y propagar eventos
         this.socket.on("roomJoined", (room: any) => {
             this.lastRoom = room;
+        });
+
+        this.socket.on("connect", () => {
+            console.debug("[gameSocket] connected", this.socket.id);
+        });
+
+        this.socket.on("disconnect", (reason) => {
+            console.debug("[gameSocket] disconnected", reason);
         });
     }
 
@@ -38,123 +45,115 @@ class GameSocket {
         return GameSocket.instance;
     }
 
-    // Exponer último estado recibido (útil para navegar sin pasar el JSON por URL)
     getLastRoom() {
         return this.lastRoom;
     }
 
-    // Suscripción para recibir el evento roomJoined
-    onRoomJoined(callback: (room: any) => void): () => void {
-        this.socket.on("roomJoined", callback);
-        return () => this.socket.off("roomJoined", callback);
+    onRoomJoined(cb: (room: any) => void) {
+        this.socket.on("roomJoined", cb);
+        return () => this.socket.off("roomJoined", cb);
     }
 
-    private async ensureConnection(): Promise<void> {
+    onGameUpdate(cb: (state: any) => void) {
+        const wrapper = (payload: any) => cb(payload);
+        this.socket.on("gameUpdated", wrapper);
+        return () => this.socket.off("gameUpdated", wrapper);
+    }
+
+    onPlayerJoined(cb: (payload: { playerName: string; playerData: PlayerData }) => void) {
+        this.socket.on("playerJoined", cb);
+        return () => this.socket.off("playerJoined", cb);
+    }
+
+    onPlayerLeft(cb: (payload: { playerName: string }) => void) {
+        this.socket.on("playerLeft", cb);
+        return () => this.socket.off("playerLeft", cb);
+    }
+
+    async ensureConnection(timeoutMs = 5000): Promise<void> {
         if (this.socket.connected) return;
-        
-        if (this.isConnecting) {
-            return this.connectionPromise!;
+        if (this.connecting) {
+            // wait until it's connected or timeout
+            await new Promise<void>((resolve) => {
+                const check = () => {
+                    if (this.socket.connected) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                };
+                const interval = setInterval(check, 100);
+                setTimeout(() => {
+                    clearInterval(interval);
+                    resolve();
+                }, timeoutMs);
+            });
+            return;
         }
 
-        this.isConnecting = true;
-        this.connectionPromise = new Promise<void>((resolve) => {
-            const timeout = setTimeout(() => {
-                this.socket.off('connect', onConnect);
-                this.isConnecting = false;
-                resolve();
-            }, 5000);
+        this.connecting = true;
+        this.socket.connect();
 
+        await new Promise<void>((resolve) => {
             const onConnect = () => {
-                clearTimeout(timeout);
-                this.socket.off('connect', onConnect);
-                this.isConnecting = false;
+                this.socket.off("connect", onConnect);
+                this.connecting = false;
                 resolve();
             };
+            this.socket.once("connect", onConnect);
 
-            this.socket.once('connect', onConnect);
-            this.socket.connect();
+            setTimeout(() => {
+                this.socket.off("connect", onConnect);
+                this.connecting = false;
+                resolve();
+            }, timeoutMs);
         });
-
-        return this.connectionPromise;
     }
 
-    async joinRoom(
-        roomId: string,
-        playerName: string,
-        playerData: any
-    ): Promise<{ success: true; room: any } | { success: false; error: any }> {
+    async joinRoom(roomId: string, playerName: string, playerData: PlayerData) {
         await this.ensureConnection();
-
-        return new Promise((resolve) => {
-            const timeoutId = setTimeout(() => {
+        return new Promise<{ success: boolean; room?: any; error?: any }>((resolve) => {
+            const onJoined = (room: any) => {
                 cleanup();
-                resolve({ success: false, error: { message: "Timeout al unirse" } });
-            }, 5000);
-
+                this.lastRoom = room;
+                resolve({ success: true, room });
+            };
+            const onError = (err: any) => {
+                cleanup();
+                resolve({ success: false, error: err });
+            };
             const cleanup = () => {
-                clearTimeout(timeoutId);
                 this.socket.off("roomJoined", onJoined);
                 this.socket.off("joinError", onError);
                 this.socket.off("error", onError);
-            };
-
-            const onJoined = (room: any) => {
-                cleanup();
-                // guardar para que otras páginas puedan leerlo
-                this.lastRoom = room;
-                console.log("✅ Unión exitosa:", room);
-                resolve({ success: true, room });
-            };
-
-            const onError = (err: any) => {
-                cleanup();
-                console.warn("⚠️ Error al unirse:", err);
-                resolve({ success: false, error: err });
             };
 
             this.socket.once("roomJoined", onJoined);
             this.socket.once("joinError", onError);
             this.socket.once("error", onError);
 
-            console.log("🔄 Enviando joinRoom:", { roomId, playerName });
             this.socket.emit("joinRoom", { roomId, playerName, playerData });
         });
     }
 
-    updateGameState(roomId: string, gameState: any) {
-        this.socket.emit("updateGame", { roomId, gameState });
+    async leaveRoom(roomId: string, playerName: string) {
+        try {
+            await this.ensureConnection();
+            this.socket.emit("leaveRoom", { roomId, playerName });
+            this.lastRoom = null;
+        } catch (e) {
+            // ignore
+        }
     }
 
-    onGameUpdate(callback: (gameState: any) => void): () => void {
-        this.socket.on("gameUpdated", callback);
-        return () => this.socket.off("gameUpdated", callback);
-    }
-
-    onPlayerJoined(
-        callback: (data: { playerName: string; playerData: PlayerData }) => void
-    ): () => void {
-        this.socket.on("playerJoined", callback);
-        return () => this.socket.off("playerJoined", callback);
-    }
-
-    onPlayerLeft(callback: (data: { playerName: string }) => void): () => void {
-        this.socket.on("playerLeft", callback);
-        return () => this.socket.off("playerLeft", callback);
-    }
-
-    leaveRoom(roomId: string, playerName: string) {
-        // emitir evento para que el servidor elimine al jugador de la sala sin desconectar el socket
-        this.socket.emit("leaveRoom", { roomId, playerName });
-    }
-
-    // método genérico para emitir eventos
-    emit(event: string, ...args: any[]) {
-        this.socket.emit(event, ...args);
-    }
-
-
-    disconnect() {
-        this.socket.disconnect();
+    // Wrapper simple para emitir; espera conexión y resuelve inmediatamente después de emitir.
+    async emit(event: string, ...args: any[]) {
+        await this.ensureConnection();
+        try {
+            this.socket.emit(event, ...args);
+        } catch (e) {
+            console.error("[gameSocket] emit error", e);
+            throw e;
+        }
     }
 }
 
