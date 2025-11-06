@@ -31,6 +31,7 @@ async function startServer() {
     io.on("connection", (socket) => {
       console.log("Cliente conectado:", socket.id);
 
+      // --- EXISTENTE: joinRoom / leaveRoom / disconnect ---
       socket.on("joinRoom", async ({ roomId, playerName, playerData }) => {
         try {
           console.log("Intento de unión:", { roomId, playerName });
@@ -86,6 +87,62 @@ async function startServer() {
           }
         }
       });
+
+      // --- NUEVO: manejar actualizaciones de sala / gameState desde cliente ---
+      // Cliente emite: socket.emit("updateRoom", roomId, { players?: ..., gameState?: ... })
+      socket.on("updateRoom", async (roomId: string, payload: any) => {
+        try {
+          if (!roomId || !payload) return;
+          const room = (await RoomService.getRoom(roomId)) || {
+            players: {},
+            gameState: {
+              host: "",
+              isGameActive: false,
+              winner: null,
+              deck: [],
+              calledCardIds: [],
+              timestamp: Date.now(),
+            }
+          };
+
+          // Fusionar players si vienen
+          if (payload.players && typeof payload.players === "object") {
+            room.players = { ...(room.players || {}), ...payload.players };
+          }
+
+          // Fusionar gameState si viene
+          if (payload.gameState && typeof payload.gameState === "object") {
+            room.gameState = { ...(room.gameState || {}), ...payload.gameState };
+          }
+
+          await RoomService.createOrUpdateRoom(roomId, room);
+
+          // Emitir sólo el gameState (el cliente espera gameUpdated → gameState)
+          io.to(roomId).emit("gameUpdated", room.gameState);
+          // Emitir también la sala completa por si otros consumidores la necesitan
+          io.to(roomId).emit("roomUpdated", room);
+        } catch (err) {
+          console.error("Error en updateRoom:", err);
+          socket.emit("error", { message: "Error al actualizar sala", detail: String(err) });
+        }
+      });
+
+      // Soportar formato alterno: socket.emit("updateGame", { roomId, gameState })
+      socket.on("updateGame", async (payload: { roomId: string; gameState: any }) => {
+        try {
+          if (!payload?.roomId || !payload?.gameState) return;
+          const roomId = payload.roomId;
+          const room = (await RoomService.getRoom(roomId)) || { players: {}, gameState: {} as any };
+          room.gameState = { ...(room.gameState || {}), ...payload.gameState };
+          await RoomService.createOrUpdateRoom(roomId, room);
+          io.to(roomId).emit("gameUpdated", room.gameState);
+          io.to(roomId).emit("roomUpdated", room);
+        } catch (err) {
+          console.error("Error en updateGame:", err);
+          socket.emit("error", { message: "Error al actualizar gameState", detail: String(err) });
+        }
+      });
+
     });
   });
 

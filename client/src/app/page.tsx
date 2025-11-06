@@ -57,8 +57,9 @@ export default function Home() {
                 return;
             }
 
-            // Navegar a la sala con los datos iniciales
-            router.push(`/room/${roomId}?name=${encodeURIComponent(playerName)}&initialRoom=${encodeURIComponent(JSON.stringify(res.room))}`);
+            // Navegar a la sala SIN adjuntar el objeto grande en la URL.
+            // El estado inicial ya quedó guardado en gameSocket.getLastRoom()
+            router.push(`/room/${roomId}?name=${encodeURIComponent(playerName)}`);
         }
     };
 

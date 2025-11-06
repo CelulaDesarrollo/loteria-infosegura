@@ -14,6 +14,7 @@ class GameSocket {
     private static instance: GameSocket;
     private isConnecting: boolean = false;
     private connectionPromise: Promise<void> | null = null;
+    private lastRoom: any = null; // <-- almacena ultimo room recibido
 
     private constructor() {
         this.socket = io(BACKEND, {
@@ -23,6 +24,11 @@ class GameSocket {
             reconnectionDelay: 1000,
             reconnectionAttempts: 5
         });
+
+        // Mantener lastRoom actualizado si el servidor emite roomJoined
+        this.socket.on("roomJoined", (room: any) => {
+            this.lastRoom = room;
+        });
     }
 
     static getInstance() {
@@ -30,6 +36,17 @@ class GameSocket {
             GameSocket.instance = new GameSocket();
         }
         return GameSocket.instance;
+    }
+
+    // Exponer último estado recibido (útil para navegar sin pasar el JSON por URL)
+    getLastRoom() {
+        return this.lastRoom;
+    }
+
+    // Suscripción para recibir el evento roomJoined
+    onRoomJoined(callback: (room: any) => void): () => void {
+        this.socket.on("roomJoined", callback);
+        return () => this.socket.off("roomJoined", callback);
     }
 
     private async ensureConnection(): Promise<void> {
@@ -83,6 +100,8 @@ class GameSocket {
 
             const onJoined = (room: any) => {
                 cleanup();
+                // guardar para que otras páginas puedan leerlo
+                this.lastRoom = room;
                 console.log("✅ Unión exitosa:", room);
                 resolve({ success: true, room });
             };

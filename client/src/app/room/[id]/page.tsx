@@ -28,6 +28,25 @@ export default function RoomPage() {
     useEffect(() => {
         if (!roomId || !name) return;
 
+        // Si no venimos con initialRoom en la URL, intentar obtener el último estado
+        if (!roomData) {
+            const last = gameSocket.getLastRoom?.();
+            if (last) {
+                setRoomData(last);
+                setLoading(false);
+            } else {
+                // si tampoco hay lastRoom, suscribirse una vez a roomJoined para recibirlo
+                const unsubRoom = gameSocket.onRoomJoined((room) => {
+                    setRoomData(room);
+                    setLoading(false);
+                });
+                // cleanup al desmontar
+                return () => {
+                    unsubRoom();
+                };
+            }
+        }
+
         const unsubscribeUpdate = gameSocket.onGameUpdate((newState) => {
             setRoomData(prev => ({...prev, gameState: newState}));
         });
