@@ -36,7 +36,7 @@ async function startServer() {
         try {
           console.log("Intento de unión:", { roomId, playerName });
           const result = await RoomService.addPlayer(roomId, playerName, playerData);
-          
+
           if (!result.added) {
             console.log("Unión fallida:", result.reason);
             socket.emit("joinError", {
@@ -87,7 +87,7 @@ async function startServer() {
         const roomId = socket.data.roomId;
         const playerName = socket.data.playerName;
         console.log("Cliente desconectado:", socket.id, { roomId, playerName });
-        
+
         if (roomId && playerName) {
           try {
             await RoomService.removePlayer(roomId, playerName);
@@ -137,11 +137,14 @@ async function startServer() {
             room.gameState?.winner != null ||
             (payload.gameState && payload.gameState.isGameActive === false);
 
-          if (shouldClearMarks && room.players) {
-            Object.keys(room.players).forEach((k) => {
-              room.players[k] = { ...(room.players[k] || {}), markedIndices: [] };
+          if (shouldClearMarks && room.players && typeof room.players === "object") {
+            const players = room.players as Record<string, Player>;
+            Object.keys(players).forEach((k) => {
+              players[k] = { ...(players[k] || {}), markedIndices: [] };
             });
+            room.players = players;
           }
+
 
           await RoomService.createOrUpdateRoom(roomId, room);
 
