@@ -1,11 +1,11 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "main": "dist/index.ts",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "npx tsc",
-    "start": "npx tsc && node dist/index.js"
+    "prebuild": "npm install typescript --force && chmod +x ./node_modules/.bin/tsc",
+    "build": "npm run prebuild && ./node_modules/.bin/tsc",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@fastify/cors": "^8.3.0",
