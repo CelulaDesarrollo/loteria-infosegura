@@ -12,11 +12,16 @@ interface PlayerData {
 class GameSocket {
     private socket: Socket;
     private static instance: GameSocket;
+    private isConnecting: boolean = false;
+    private connectionPromise: Promise<void> | null = null;
 
     private constructor() {
         this.socket = io(BACKEND, {
             transports: ["websocket"],
-            autoConnect: true,
+            autoConnect: false,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5
         });
     }
 
@@ -27,45 +32,72 @@ class GameSocket {
         return GameSocket.instance;
     }
 
-    // ahora siempre resolvemos con { success, room?, error? }
+    private async ensureConnection(): Promise<void> {
+        if (this.socket.connected) return;
+        
+        if (this.isConnecting) {
+            return this.connectionPromise!;
+        }
+
+        this.isConnecting = true;
+        this.connectionPromise = new Promise<void>((resolve) => {
+            const timeout = setTimeout(() => {
+                this.socket.off('connect', onConnect);
+                this.isConnecting = false;
+                resolve();
+            }, 5000);
+
+            const onConnect = () => {
+                clearTimeout(timeout);
+                this.socket.off('connect', onConnect);
+                this.isConnecting = false;
+                resolve();
+            };
+
+            this.socket.once('connect', onConnect);
+            this.socket.connect();
+        });
+
+        return this.connectionPromise;
+    }
+
     async joinRoom(
         roomId: string,
         playerName: string,
         playerData: any
     ): Promise<{ success: true; room: any } | { success: false; error: any }> {
-        await new Promise<void>((resolve) => {
-            if (this.socket.connected) resolve();
-            else this.socket.once("connect", resolve);
-        });
+        await this.ensureConnection();
 
         return new Promise((resolve) => {
-            const onJoined = (room: any) => {
+            const timeoutId = setTimeout(() => {
                 cleanup();
-                console.log("✅ Evento roomJoined recibido:", room);
-                resolve({ success: true, room });
-            };
-            const onJoinError = (err: any) => {
-                cleanup();
-                console.warn("⚠️ joinError recibido:", err);
-                resolve({ success: false, error: err || { message: "unknown" } });
-            };
-            const onError = (err: any) => {
-                cleanup();
-                console.error("❌ Evento error recibido:", err);
-                resolve({ success: false, error: err || { message: "unknown" } });
-            };
+                resolve({ success: false, error: { message: "Timeout al unirse" } });
+            }, 5000);
 
             const cleanup = () => {
+                clearTimeout(timeoutId);
                 this.socket.off("roomJoined", onJoined);
-                this.socket.off("joinError", onJoinError);
+                this.socket.off("joinError", onError);
                 this.socket.off("error", onError);
             };
 
+            const onJoined = (room: any) => {
+                cleanup();
+                console.log("✅ Unión exitosa:", room);
+                resolve({ success: true, room });
+            };
+
+            const onError = (err: any) => {
+                cleanup();
+                console.warn("⚠️ Error al unirse:", err);
+                resolve({ success: false, error: err });
+            };
+
             this.socket.once("roomJoined", onJoined);
-            this.socket.once("joinError", onJoinError);
+            this.socket.once("joinError", onError);
             this.socket.once("error", onError);
 
-            console.log("🛰️ Enviando joinRoom...", { roomId, playerName });
+            console.log("🔄 Enviando joinRoom:", { roomId, playerName });
             this.socket.emit("joinRoom", { roomId, playerName, playerData });
         });
     }

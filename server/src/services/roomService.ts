@@ -45,67 +45,49 @@ export class RoomService {
     playerData: Player
   ): Promise<{
     added: boolean;
-    reconnected?: boolean;
-    reason?: 'name_exists' | 'name_in_use' | 'full'
+    reason?: 'name_exists' | 'name_in_use' | 'full';
   }> {
     const nameKey = playerName.trim();
-    let room = await this.getRoom(roomId);
+    const room = await this.getRoom(roomId);
 
+    // Si la sala no existe, crear nueva
     if (!room) {
       const newRoom: Room = {
-        players: { [nameKey]: playerData },
+        players: {
+          [nameKey]: { ...playerData, isOnline: true }
+        },
         gameState: {
           host: nameKey,
           isGameActive: false,
           winner: null,
           deck: [],
           calledCardIds: [],
-          timestamp: Date.now(),
-        },
+          timestamp: Date.now()
+        }
       };
       await this.createOrUpdateRoom(roomId, newRoom);
       return { added: true };
     }
 
-    const existingKeys = Object.keys(room.players || {});
-    const existingKey = existingKeys.find(
-      (k) => k.trim().toLowerCase() === nameKey.toLowerCase()
+    // Verificar jugador existente
+    const existingPlayer = Object.entries(room.players || {}).find(
+      ([key]) => key.toLowerCase() === nameKey.toLowerCase()
     );
 
-    if (existingKey) {
-      const existingPlayer = room.players[existingKey];
-
-      // Si el jugador está offline, es una reconexión válida
-      if (!existingPlayer.isOnline) {
-        room.players[existingKey] = {
-          ...existingPlayer,
-          ...playerData,
-          isOnline: true,
-        };
-        await this.createOrUpdateRoom(roomId, room);
-        return { added: true, reconnected: true };
-      }
-
-      // Si ya está online, es un duplicado → rechazamos
+    if (existingPlayer) {
       return { added: false, reason: 'name_in_use' };
     }
 
-    if (existingKeys.length >= MAX_PLAYERS) {
+    // Verificar límite de jugadores
+    if (Object.keys(room.players || {}).length >= MAX_PLAYERS) {
       return { added: false, reason: 'full' };
     }
 
-    // añadir jugador; si host está vacío, asignarlo a este jugador
-    room.players[nameKey] = playerData;
-    if (!room.gameState) {
-      room.gameState = {
-        host: nameKey,
-        isGameActive: false,
-        winner: null,
-        deck: [],
-        calledCardIds: [],
-        timestamp: Date.now(),
-      };
-    } else if (!room.gameState.host || room.gameState.host.trim() === '') {
+    // Añadir nuevo jugador
+    room.players[nameKey] = { ...playerData, isOnline: true };
+    
+    // Asignar host si no hay
+    if (!room.gameState.host) {
       room.gameState.host = nameKey;
     }
 

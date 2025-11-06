@@ -46,19 +46,19 @@ export default function Home() {
             const res = await gameSocket.joinRoom(roomId, playerName, playerData);
 
             if (!res.success) {
-                if (res.error === "full") {
+                if (res.error.code === "full") {
                     setShowRoomFullModal(true);
-                } else if (res.error === "name_exists") {
+                } else if (res.error.code === "name_in_use") {
                     setShowNameExistsModal(true);
                 } else {
-                    // fallback: muestra modal/alert sencillo
                     setShowNameExistsModal(true);
                 }
                 setIsLoading(false);
                 return;
             }
 
-            router.push(`/room/${roomId}?name=${encodeURIComponent(playerName)}`);
+            // Navegar a la sala con los datos iniciales
+            router.push(`/room/${roomId}?name=${encodeURIComponent(playerName)}&initialRoom=${encodeURIComponent(JSON.stringify(res.room))}`);
         }
     };
 

@@ -33,8 +33,11 @@ async function startServer() {
 
       socket.on("joinRoom", async ({ roomId, playerName, playerData }) => {
         try {
+          console.log("Intento de unión:", { roomId, playerName });
           const result = await RoomService.addPlayer(roomId, playerName, playerData);
+          
           if (!result.added) {
+            console.log("Unión fallida:", result.reason);
             socket.emit("joinError", {
               code: result.reason || "unknown",
               message: result.reason === "name_exists" ? "El nombre ya existe" : "Sala llena",
@@ -42,25 +45,45 @@ async function startServer() {
             return;
           }
 
+          // Guardar datos en el socket antes de unirse a la sala
           socket.data.roomId = roomId;
           socket.data.playerName = playerName;
 
-          socket.join(roomId);
+          await socket.join(roomId);
           const room = await RoomService.getRoom(roomId);
+          console.log("Unión exitosa, sala:", room);
+
           socket.emit("roomJoined", room);
           socket.to(roomId).emit("playerJoined", { playerName, playerData });
         } catch (err) {
-          console.error("Error in joinRoom:", err);
+          console.error("Error en joinRoom:", err);
           socket.emit("joinError", { code: "server_error", message: "Error al unirse a la sala" });
         }
       });
 
-      socket.on("disconnect", async () => {
-        const { roomId, playerName } = socket.data;
-        console.log("Cliente desconectado:", socket.id, roomId, playerName);
-        if (roomId && playerName) {
+      socket.on("leaveRoom", async ({ roomId, playerName }) => {
+        try {
+          console.log("Solicitud de salida:", { roomId, playerName });
           await RoomService.removePlayer(roomId, playerName);
+          socket.leave(roomId);
           io.to(roomId).emit("playerLeft", { playerName });
+        } catch (err) {
+          console.error("Error en leaveRoom:", err);
+        }
+      });
+
+      socket.on("disconnect", async () => {
+        const roomId = socket.data.roomId;
+        const playerName = socket.data.playerName;
+        console.log("Cliente desconectado:", socket.id, { roomId, playerName });
+        
+        if (roomId && playerName) {
+          try {
+            await RoomService.removePlayer(roomId, playerName);
+            io.to(roomId).emit("playerLeft", { playerName });
+          } catch (err) {
+            console.error("Error al remover jugador en disconnect:", err);
+          }
         }
       });
     });
