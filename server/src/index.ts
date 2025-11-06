@@ -139,9 +139,15 @@ async function startServer() {
 
           if (shouldClearMarks && room.players && typeof room.players === "object") {
             const players = room.players as Record<string, Player>;
-            Object.keys(players).forEach((k) => {
-              players[k] = { ...(players[k] || {}), markedIndices: [] };
-            });
+            if (shouldClearMarks && room.players && typeof room.players === "object") {
+              const players = room.players as Record<string, Player>;
+              Object.keys(players).forEach((k: string) => {
+                const current = players[k] || ({} as Player);
+                players[k] = { ...current, markedIndices: [] };
+              });
+              room.players = players;
+            }
+
             room.players = players;
           }
 
