@@ -10,14 +10,14 @@ async function startServer() {
 
   // 1️⃣ CORS para endpoints normales
   await fastify.register(fastifyCors, {
-    origin: ["http://localhost:3000"],
+    origin: ["https://loteria-infosegura-d9v8.vercel.app"],
     credentials: true,
   });
 
   // 2️⃣ Socket.IO con CORS explícito
   await fastify.register(fastifySocketIO, {
     cors: {
-      origin: ["http://localhost:3000"],
+      origin: ["https://loteria-infosegura-d9v8.vercel.app"],
       methods: ["GET", "POST"],
       credentials: true,
     },
