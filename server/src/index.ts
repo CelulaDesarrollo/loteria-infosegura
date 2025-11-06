@@ -139,18 +139,12 @@ async function startServer() {
 
           if (shouldClearMarks && room.players && typeof room.players === "object") {
             const players = room.players as Record<string, Player>;
-            if (shouldClearMarks && room.players && typeof room.players === "object") {
-              const players = room.players as Record<string, Player>;
-              Object.keys(players).forEach((k: string) => {
-                const current = players[k] || ({} as Player);
-                players[k] = { ...current, markedIndices: [] };
-              });
-              room.players = players;
-            }
-
+            Object.keys(players).forEach((k: string) => {
+              const current = players[k] || ({} as Player);
+              players[k] = { ...current, markedIndices: [] };
+            });
             room.players = players;
           }
-
 
           await RoomService.createOrUpdateRoom(roomId, room);
 
@@ -169,7 +163,7 @@ async function startServer() {
         try {
           if (!payload?.roomId || !payload?.gameState) return;
           const roomId = payload.roomId;
-          const room = (await RoomService.getRoom(roomId)) || { players: {}, gameState: {} as any };
+          const room = (await RoomService.getRoom(roomId)) || { players: {} as Record<string, Player>, gameState: {} as any };
           room.gameState = { ...(room.gameState || {}), ...payload.gameState };
 
           // Si hay ganador o el juego se desactiva, limpiar marcas
@@ -177,7 +171,8 @@ async function startServer() {
             room.gameState?.winner != null || payload.gameState.isGameActive === false;
           if (shouldClearMarks && room.players) {
             Object.keys(room.players).forEach((k) => {
-              room.players[k] = { ...(room.players[k] || {}), markedIndices: [] };
+              const players = room.players as Record<string, Player>;
+              players[k] = { ...(players[k] || {}), markedIndices: [] };
             });
           }
 
