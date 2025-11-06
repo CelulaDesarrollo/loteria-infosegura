@@ -5,6 +5,7 @@
   "scripts": {
     "prebuild": "npm install typescript --force && chmod +x ./node_modules/.bin/tsc",
     "build": "npm run prebuild && ./node_modules/.bin/tsc",
+    "postinstall": "npm rebuild sqlite3 --build-from-source",
     "start": "node dist/index.js"
   },
   "dependencies": {
