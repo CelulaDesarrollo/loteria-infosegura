@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL;
+const BACKEND = "https://loteria-infosegura-production.up.railway.app/";
 
 interface PlayerData {
     name: string;
