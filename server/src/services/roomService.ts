@@ -85,7 +85,7 @@ export class RoomService {
 
     // Añadir nuevo jugador
     room.players[nameKey] = { ...playerData, isOnline: true };
-    
+
     // Asignar host si no hay
     if (!room.gameState.host) {
       room.gameState.host = nameKey;
@@ -111,4 +111,15 @@ export class RoomService {
 
     await this.createOrUpdateRoom(roomId, room);
   }
+
+  static async deleteRoom(roomId: string): Promise<void> {
+    try {
+      await dbRunAsync('DELETE FROM rooms WHERE id = ?', [roomId]);
+      console.log(`Sala ${roomId} eliminada correctamente.`);
+    } catch (error) {
+      console.error(`Error al eliminar la sala ${roomId}:`, error);
+      throw error;
+    }
+  }
+
 }
