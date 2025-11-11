@@ -135,6 +135,7 @@ async function startServer() {
               host: "",
               isGameActive: false,
               winner: null,
+              gameMode: "",
               deck: [],
               calledCardIds: [],
               timestamp: Date.now(),

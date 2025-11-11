@@ -151,6 +151,7 @@ export class RoomService {
           host: nameKey,
           isGameActive: false,
           winner: null,
+          gameMode: "",
           deck: [],
           calledCardIds: [],
           timestamp: Date.now(),
