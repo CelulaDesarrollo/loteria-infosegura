@@ -92,8 +92,18 @@ async function startServer() {
           try {
             await RoomService.removePlayer(roomId, playerName);
 
-            // Tras removePlayer, obtener sala y propagar cambios (re-asignación de host, etc.)
+            // Obtener sala actualizada
             const updated = await RoomService.getRoom(roomId);
+
+            // Si ya no quedan jugadores, limpiar completamente la sala
+            if (!updated || Object.keys(updated.players || {}).length === 0) {
+              console.log(`🧹 Sala ${roomId} vacía, eliminando estado`);
+              await RoomService.deleteRoom?.(roomId); // si tienes ese método
+              // Si no lo tienes, puedes usar:
+              // await RoomService.createOrUpdateRoom(roomId, { players: {}, gameState: { host: "", isGameActive: false, winner: null, deck: [], calledCardIds: [] } });
+              return;
+            }
+
             io.to(roomId).emit("playerLeft", { playerName });
             io.to(roomId).emit("roomUpdated", updated);
             if (updated?.gameState) io.to(roomId).emit("gameUpdated", updated.gameState);
@@ -103,6 +113,7 @@ async function startServer() {
           }
         }
       });
+
 
       // --- NUEVO: manejar actualizaciones de sala / gameState desde cliente ---
       // Cliente emite: socket.emit("updateRoom", roomId, { players?: ..., gameState?: ... })

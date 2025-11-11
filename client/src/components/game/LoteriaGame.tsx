@@ -172,48 +172,50 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
             const exists = acc.find(a => a.name === cur.name);
             if (!exists) acc.push(cur);
             return acc;
-          }, [] as { name:string; seleccionadas:number }[])
-          .sort((a,b) => b.seleccionadas - a.seleccionadas);
+          }, [] as { name: string; seleccionadas: number }[])
+          .sort((a, b) => b.seleccionadas - a.seleccionadas);
+
         setRanking(rankingArr);
 
-        // limpiar markedIndices de todos los jugadores (UI + servidor)
+        // Primero emitir el ganador con las marcas intactas (para que todos vean el ranking correcto)
+        await gameSocket.emit("updateRoom", roomId, {
+          players: updatedPlayers,
+          gameState: {
+            ...roomData.gameState,
+            winner,
+            isGameActive: false,
+          },
+        });
+
+        // Luego limpiar localmente los tableros
         const clearedPlayers: any = {};
         Object.keys(roomData.players || {}).forEach(k => {
           clearedPlayers[k] = { ...roomData.players[k], markedIndices: [] };
         });
 
-        // Optimistic update: mostrar ganador y tableros limpios
         setRoomData(prev => ({
           ...(prev || {}),
           players: clearedPlayers,
-          gameState: { ...(prev?.gameState || {}), winner: winner ?? null, isGameActive }
+          gameState: { ...(prev?.gameState || {}), winner, isGameActive: false },
         }));
-
-        await gameSocket.emit("updateRoom", roomId, {
-          players: clearedPlayers,
-          gameState: {
-            ...roomData.gameState,
-            winner: winner ?? null,
-            isGameActive,
-          }
-        });
       } else {
         // caso normal: solo marcar al jugador y emitir
         setRoomData(prev => ({
           ...(prev || {}),
           players: updatedPlayers,
-          gameState: { ...(prev?.gameState || {}), winner: winner ?? null, isGameActive }
+          gameState: { ...(prev?.gameState || {}), winner, isGameActive },
         }));
 
         await gameSocket.emit("updateRoom", roomId, {
           players: updatedPlayers,
           gameState: {
             ...roomData.gameState,
-            winner: winner ?? null,
+            winner,
             isGameActive,
-          }
+          },
         });
       }
+
     }
   };
 
@@ -703,8 +705,11 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
             open={!!gameState.winner}
             ranking={ranking}
             gameMode={gameState.gameMode}
+            currentPlayer={playerName}
+            winnerName={gameState.winner}
             onRestart={isHost ? resetGame : undefined}
           />
+
 
           {/* Modal de inactividad */}
           <IdleModal

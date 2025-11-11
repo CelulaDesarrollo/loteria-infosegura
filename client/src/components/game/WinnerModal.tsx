@@ -16,10 +16,13 @@ interface WinnerModalProps {
   ranking: { name: string; seleccionadas: number }[];
   onRestart?: () => void;
   gameMode?: string; //  Dependiendo del modo de juego, podrías mostrar diferentes mensajes o estilos
+  currentPlayer?: string;
+  winnerName?: string;
 }
 
-export function WinnerModal({ open, onRestart, ranking, gameMode }: WinnerModalProps) {
+export function WinnerModal({ open, onRestart, ranking, gameMode, currentPlayer, winnerName }: WinnerModalProps) {
   const mostrarCartas = !gameMode || gameMode === "full"; // Solo en Tradicional
+  const esGanador = winnerName && winnerName === currentPlayer;
 
   return (
     <AlertDialog open={open}>
