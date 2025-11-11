@@ -163,6 +163,13 @@ async function startServer() {
           io.to(roomId).emit("gameUpdated", room.gameState);
           // Emitir también la sala completa por si otros consumidores la necesitan
           io.to(roomId).emit("roomUpdated", room);
+          if (shouldClearMarks) {
+            const players = room.players as Record<string, Player>;
+            Object.keys(players).forEach((pName: string) => {
+              // Emitimos el evento que el cliente usa para actualizar un solo jugador
+              io.to(roomId).emit("playerJoined", { playerName: pName, playerData: players[pName] });
+            });
+          }
         } catch (err) {
           console.error("Error en updateRoom:", err);
           socket.emit("error", { message: "Error al actualizar sala", detail: String(err) });
@@ -190,6 +197,14 @@ async function startServer() {
           await RoomService.createOrUpdateRoom(roomId, room);
           io.to(roomId).emit("gameUpdated", room.gameState);
           io.to(roomId).emit("roomUpdated", room);
+
+          if (shouldClearMarks) {
+            const players = room.players as Record<string, Player>;
+            Object.keys(players).forEach((pName: string) => {
+              // Emitimos el evento que el cliente usa para actualizar un solo jugador
+              io.to(roomId).emit("playerJoined", { playerName: pName, playerData: players[pName] });
+            });
+          }
         } catch (err) {
           console.error("Error en updateGame:", err);
           socket.emit("error", { message: "Error al actualizar gameState", detail: String(err) });

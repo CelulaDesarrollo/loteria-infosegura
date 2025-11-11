@@ -177,9 +177,9 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
         setRanking(rankingArr);
 
-        // Primero emitir el ganador con las marcas intactas (para que todos vean el ranking correcto)
+        // 1. Primero emitir el ganador con las marcas intactas (para que el servidor valide y limpie)
         await gameSocket.emit("updateRoom", roomId, {
-          players: updatedPlayers,
+          players: updatedPlayers, // Contiene las marcas que hicieron ganar
           gameState: {
             ...roomData.gameState,
             winner,
@@ -187,16 +187,9 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
           },
         });
 
-        // Luego limpiar localmente los tableros
-        const clearedPlayers: any = {};
-        Object.keys(roomData.players || {}).forEach(k => {
-          clearedPlayers[k] = { ...roomData.players[k], markedIndices: [] };
-        });
-
         setRoomData(prev => ({
-          ...(prev || {}),
-          players: clearedPlayers,
-          gameState: { ...(prev?.gameState || {}), winner, isGameActive: false },
+            ...(prev || {}),
+            gameState: { ...(prev?.gameState || {}), winner, isGameActive: false },
         }));
       } else {
         // caso normal: solo marcar al jugador y emitir
