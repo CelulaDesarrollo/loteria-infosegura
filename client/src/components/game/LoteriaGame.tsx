@@ -4,7 +4,7 @@ import { GameBoard } from "./GameBoard";
 import { DealerDisplay } from "./DealerDisplay";
 import { WinnerModal } from "./WinnerModal";
 import { Button } from "@/components/ui/button";
-import { Card as CardType, generateBoard, createDeck, checkWin, CARDS } from "@/lib/loteria";
+import { Card as CardType, generateBoard, checkWin, CARDS } from "@/lib/loteria";
 import { Play, RotateCw, LogOut, Volume2, VolumeOff } from "lucide-react";
 import { PlayerList } from "./PlayerList";
 import { gameSocket } from "@/lib/gameSocket";
@@ -205,28 +205,33 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       setShowModeModal(true);
       return;
     }
-
+    /* comentado para mostrar cartas de lado de Servidor 
     const newDeck = createDeck();
     const updatedPlayers = { ...roomData.players };
     Object.keys(updatedPlayers).forEach(pName => {
       updatedPlayers[pName].markedIndices = [];
     });
+    */
 
-    // Optimistic update para que UI inicie juego al instante
+    // Limpiar markedIndices para el nuevo juego
+    const updatedPlayers = { ...roomData.players };
+    Object.keys(updatedPlayers).forEach(pName => {
+      updatedPlayers[pName].markedIndices = [];
+    });
+
+    // Optimistic update (solo el modo y el estado activo)
     setRoomData(prev => ({
       ...(prev || {}),
       players: updatedPlayers,
       gameState: {
         ...(prev?.gameState || {}),
-        deck: newDeck,
-        calledCardIds: [newDeck[0].id],
         isGameActive: true,
         winner: null,
         gameMode: selectedMode,
         timestamp: Date.now()
       }
     }));
-
+    /* comentado para mostrar cartas de lado de Servidor 
     await gameSocket.emit("updateRoom", roomId, {
       players: updatedPlayers,
       gameState: {
@@ -239,6 +244,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         timestamp: Date.now()
       }
     });
+    */
 
     setRanking([]);
     setFirstCard(null);
@@ -259,7 +265,6 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       host: playerName,
       isGameActive: false,
       winner: null,
-      deck: [],
       calledCardIds: [],
       gameMode: null,
       timestamp: Date.now()
@@ -278,7 +283,6 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         host: playerName,
         isGameActive: false,
         winner: null,
-        deck: [],
         calledCardIds: [],
         gameMode: null, // limpia el modo en Firebase
         timestamp: Date.now()
@@ -292,6 +296,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
 
   // Cantada automática de cartas (solo host)
+  /* cambiar al servidor la logica de paso de carta
   useEffect(() => {
     if (
       isHost &&
@@ -339,6 +344,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     gameState?.calledCardIds,
     roomId,
   ]);
+  */
 
   if (!player || !gameState || !player.board) {
     return (
@@ -509,6 +515,9 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                           Object.keys(updatedPlayers).forEach(pName => {
                             updatedPlayers[pName].markedIndices = [];
                           });
+
+                          // AÑADIR EVENTO PARA DETENER BUCLE
+                          gameSocket.emit("stopGameLoop", roomId);
 
                           await gameSocket.emit("updateRoom", roomId, {
                             players: updatedPlayers,

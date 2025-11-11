@@ -149,7 +149,16 @@ async function startServer() {
 
           // Fusionar gameState si viene
           if (payload.gameState && typeof payload.gameState === "object") {
-            room.gameState = { ...(room.gameState || {}), ...payload.gameState };
+            const { deck, calledCardIds, ...safeGameState } = payload.gameState;
+            room.gameState = {
+              ...(room.gameState || {}),
+              ...safeGameState // Solo fusionamos propiedades seguras
+            };
+
+            // Si el cliente pide desactivar el juego o hay ganador, paramos el bucle.
+            if (safeGameState.isGameActive === false || safeGameState.winner) {
+              RoomService.stopCallingCards(roomId);
+            }
           }
 
           // Si hay ganador o el juego se desactiva, asegurarse de limpiar las marcas
@@ -162,6 +171,9 @@ async function startServer() {
             const finalRanking = calculateFinalRanking(room.players as Record<string, Player>);
             room.gameState.finalRanking = finalRanking;
             console.log(`🏆 Ranking final calculado para ${roomId}:`, finalRanking);
+
+            // Detener bucle aquí también por si el cliente no mandó isGameActive=false
+            RoomService.stopCallingCards(roomId);
           }
 
           if (shouldClearMarks && room.players && typeof room.players === "object") {
@@ -201,6 +213,17 @@ async function startServer() {
           const room = (await RoomService.getRoom(roomId)) || { players: {} as Record<string, Player>, gameState: {} as any };
           room.gameState = { ...(room.gameState || {}), ...payload.gameState };
 
+          const { deck, calledCardIds, ...safeGameState } = payload.gameState;
+          room.gameState = {
+            ...(room.gameState || {}),
+            ...safeGameState // Solo fusionamos propiedades seguras
+          };
+
+          // Si el cliente pide desactivar el juego o hay ganador, paramos el bucle.
+          if (safeGameState.isGameActive === false || safeGameState.winner) {
+            RoomService.stopCallingCards(roomId);
+          }
+
           // Si hay ganador o el juego se desactiva, limpiar marcas
           const shouldClearMarks =
             room.gameState?.winner != null || payload.gameState.isGameActive === false;
@@ -210,6 +233,9 @@ async function startServer() {
             const finalRanking = calculateFinalRanking(room.players as Record<string, Player>);
             room.gameState.finalRanking = finalRanking;
             console.log(`🏆 Ranking final calculado (updateGame) para ${roomId}:`, finalRanking);
+
+            // Detener bucle aquí también por si el cliente no mandó isGameActive=false
+            RoomService.stopCallingCards(roomId);
           }
 
           if (shouldClearMarks && room.players) {
@@ -236,7 +262,39 @@ async function startServer() {
           socket.emit("error", { message: "Error al actualizar gameState", detail: String(err) });
         }
       });
+
+      socket.on("startGameLoop", async (roomId: string, gameMode: string) => {
+        try {
+          if (!roomId || !gameMode) {
+            socket.emit("error", { message: "Datos de inicio de juego incompletos." });
+            return;
+          }
+
+          console.log(`➡️ Inicializando juego y bucle de llamadas para sala ${roomId} en modo ${gameMode}`);
+
+          // 1. Inicializa el juego (barajar mazo, limpiar marcas)
+          const initialRoom = await RoomService.initializeGame(roomId, gameMode);
+
+          // 2. Inicia el bucle de llamadas automáticas (llama a la primera carta inmediatamente)
+          await RoomService.startCallingCards(roomId, io);
+
+          // Emitir a todos para que tengan el estado inicial con el deck listo y la primera carta llamada
+          io.to(roomId).emit("gameUpdated", initialRoom.gameState);
+          io.to(roomId).emit("roomUpdated", initialRoom); // por si el cliente necesita el room completo
+
+        } catch (err) {
+          console.error(`Error al iniciar el bucle de juego para sala ${roomId}:`, err);
+          socket.emit("error", { message: "Error al iniciar el juego.", detail: String(err) });
+        }
+      });
+
+      socket.on("stopGameLoop", (roomId: string) => {
+        RoomService.stopCallingCards(roomId);
+        // No es necesario emitir nada, el estado final del juego lo hará.
+      });
     });
+
+
   });
 
   // 4️⃣ Iniciar servidor

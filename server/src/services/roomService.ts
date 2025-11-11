@@ -1,10 +1,11 @@
 import { dbGetAsync, dbRunAsync, dbAllAsync } from '../config/database';
-import { Room, Player } from '../types/game';
-
+import { Room, Player, GameState } from '../types/game';
+import {createDeck} from '../services/loteria';
 interface DBRoom {
   data: string;
 }
-
+const cardIntervals: Map<string, any> = new Map();
+const CALL_INTERVAL = 3500; // 3.5 segundos entre cartas
 const MAX_PLAYERS = 100; // ajustar si quieres
 
 export class RoomService {
@@ -35,6 +36,96 @@ export class RoomService {
         // ignora filas malformadas
         console.error('clearAllPlayers: error parsing row', row.id, e);
       }
+    }
+  }
+
+  // lógica para manejar el intervalo de llamada de cartas por sala
+  static async initializeGame(roomId: string, gameMode: string): Promise<Room> {
+    const room = await this.getRoom(roomId);
+    if (!room) {
+      throw new Error(`Room ${roomId} not found during initialization.`);
+    }
+
+    // El mazo completo barajado (guardamos solo los IDs para que sea ligero)
+    const newDeck = createDeck().map(c => c.id);
+
+    // Limpiar marcas de jugadores
+    Object.keys(room.players).forEach(pName => {
+      room.players[pName].markedIndices = [];
+    });
+
+    // Asegurarse de que el estado sea un GameState completo
+    const newGameState: GameState = {
+      ...room.gameState,
+      deck: newDeck,
+      calledCardIds: [], // Empieza vacío
+      isGameActive: true,
+      winner: null,
+      gameMode: gameMode,
+      timestamp: Date.now(),
+      finalRanking: null,
+    };
+
+    room.gameState = newGameState;
+
+    await this.createOrUpdateRoom(roomId, room);
+    return room;
+  }
+  // 2. Lógica atómica para llamar a la siguiente carta
+  static async callNextCard(roomId: string, io: any): Promise<void> {
+    const room = await this.getRoom(roomId);
+    if (!room || !room.gameState.isGameActive || room.gameState.winner) {
+      // Detiene el intervalo si el juego ya no es válido
+      this.stopCallingCards(roomId);
+      return;
+    }
+
+    const gameState = room.gameState;
+
+    if (gameState.deck.length === 0) {
+      console.log(`Sala ${roomId}: Mazo vacío. Finalizando llamadas automáticas.`);
+      this.stopCallingCards(roomId);
+      return;
+    }
+
+    // 🛑 Lógica atómica de extracción de carta en el servidor
+    const nextCardId = gameState.deck.pop();
+
+    if (nextCardId !== undefined) {
+      gameState.calledCardIds.push(nextCardId);
+      gameState.timestamp = Date.now();
+
+      // Guardar el estado actualizado
+      await this.createOrUpdateRoom(roomId, room);
+
+      // Emitir el nuevo estado del juego a todos (usa el evento que el cliente ya escucha)
+      io.to(roomId).emit("gameUpdated", gameState);
+      // Si el cliente necesita actualizar players (ej. si hubo ganador y se limpiaron marcas),
+      // se debe emitir un updateRoom o los updates individuales de player.
+    }
+  }
+
+  // 3. Iniciar el bucle de llamadas automáticas
+  static async startCallingCards(roomId: string, io: any): Promise<void> {
+    // Asegura que no haya otro temporizador corriendo para esta sala
+    this.stopCallingCards(roomId);
+
+    // Programa las llamadas sucesivas
+    const interval = setInterval(() => {
+      this.callNextCard(roomId, io);
+    }, CALL_INTERVAL);
+
+    cardIntervals.set(roomId, interval);
+    console.log(`⏱️ Bucle de llamadas iniciado para sala ${roomId} cada ${CALL_INTERVAL / 1000}s.`);
+  }
+
+  // 4. Detener el bucle de llamadas
+  static stopCallingCards(roomId: string): void {
+    const interval = cardIntervals.get(roomId);
+    if (interval) {
+      clearInterval(interval);
+      cardIntervals.delete(roomId);
+      console.log(`🛑 Bucle de llamadas detenido para sala ${roomId}.`);
     }
   }
 

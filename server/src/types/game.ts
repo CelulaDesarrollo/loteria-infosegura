@@ -9,6 +9,7 @@ export interface GameState {
   host: string;
   isGameActive: boolean;
   winner: string | null;
+  gameMode: string;
   deck: any[];
   calledCardIds: number[];
   timestamp: number;
