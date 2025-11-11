@@ -62,7 +62,8 @@ export class RoomService {
           winner: null,
           deck: [],
           calledCardIds: [],
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          finalRanking: null,
         }
       };
       await this.createOrUpdateRoom(roomId, newRoom);

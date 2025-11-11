@@ -138,6 +138,7 @@ async function startServer() {
               deck: [],
               calledCardIds: [],
               timestamp: Date.now(),
+              finalRanking: null,
             }
           };
 
