@@ -95,26 +95,6 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     };
   }, []);
 
-  // Actualiza ranking cuando hay ganador
-  useEffect(() => {
-    const winner = roomData?.gameState?.winner;
-    if (!winner) {
-      lastWinnerRef.current = null;
-      return;
-    }
-    // solo calcular si aún no lo hicimos para este ganador
-    if (lastWinnerRef.current === winner) return;
-    lastWinnerRef.current = winner;
-
-    const rankingArr = Object.values(roomData.players || {})
-      .map((p: any) => ({
-        name: p.name,
-        seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
-      }))
-      .sort((a, b) => b.seleccionadas - a.seleccionadas);
-    setRanking(rankingArr);
-  }, [roomData?.gameState?.winner, roomData?.players]);
-
   // Evitar warning aria-hidden: quitar foco antes de abrir modal de ganador
   useEffect(() => {
     if (roomData?.gameState?.winner) {
@@ -154,49 +134,47 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       };
 
       let winner = roomData.gameState.winner;
-      let isGameActive = roomData.gameState.isGameActive;
+      let isGameActive = roomData.gameState.isGameActive; // valor inicial = true
       if (checkWin(newMarkedIndices, player.board, calledCardIds, roomData.gameState.gameMode)) {
         winner = playerName;
-        isGameActive = false;
+        isGameActive = false; // valor cambia si gana = false
       }
 
       if (winner) {
         // calcular ranking ANTES de limpiar los tableros
-        const rankingArr = Object.values(roomData.players || {})
+        /*
+        const rankingArr = Object.values(updatedPlayers || {})
           .map((p: any) => ({
             name: p.name,
             seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
           }))
-          .concat([{ name: playerName, seleccionadas: newMarkedIndices.length }])
-          .reduce((acc, cur) => {
-            const exists = acc.find(a => a.name === cur.name);
-            if (!exists) acc.push(cur);
-            return acc;
-          }, [] as { name: string; seleccionadas: number }[])
           .sort((a, b) => b.seleccionadas - a.seleccionadas);
 
         setRanking(rankingArr);
+        */
 
         // 1. Primero emitir el ganador con las marcas intactas (para que el servidor valide y limpie)
         await gameSocket.emit("updateRoom", roomId, {
-          players: updatedPlayers, // Contiene las marcas que hicieron ganar
+          players: updatedPlayers,
           gameState: {
             ...roomData.gameState,
             winner,
             isGameActive: false,
+            //finalRanking: rankingArr,
           },
         });
 
         setRoomData(prev => ({
-            ...(prev || {}),
-            gameState: { ...(prev?.gameState || {}), winner, isGameActive: false },
+          ...(prev || {}),
+          players: updatedPlayers,
+          gameState: { ...(prev?.gameState || {}), winner, isGameActive: false },
         }));
       } else {
         // caso normal: solo marcar al jugador y emitir
         setRoomData(prev => ({
           ...(prev || {}),
           players: updatedPlayers,
-          gameState: { ...(prev?.gameState || {}), winner, isGameActive },
+          gameState: { ...(prev?.gameState || {}), winner, isGameActive: isGameActive },
         }));
 
         await gameSocket.emit("updateRoom", roomId, {
@@ -211,7 +189,12 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
     }
   };
-
+  useEffect(() => {
+    const finalRanking = roomData?.gameState?.finalRanking;
+    if (finalRanking && finalRanking.length > 0) {
+      setRanking(finalRanking);
+    }
+  }, [roomData?.gameState?.finalRanking]);
 
 
   // Iniciar juego (solo host)
@@ -342,7 +325,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
             calledCardIds: newCalledCardIds,
           },
         });
-      }, 3500); // <-- 3.5 segundos entre cartas CAMBIAR
+      }, 100); // <-- 3.5 segundos entre cartas CAMBIAR
     }
 
     return () => {

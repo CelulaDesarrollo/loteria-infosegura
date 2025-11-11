@@ -5,6 +5,8 @@ import { Server } from "socket.io";
 import { RoomService } from "./services/roomService";
 import { Player } from "./types/game";
 
+// ... Las importaciones y la función startServer() comienzan aquí ...
+
 async function startServer() {
   const fastify = Fastify({ logger: true });
 
@@ -27,6 +29,17 @@ async function startServer() {
   fastify.ready((err) => {
     if (err) throw err;
     const io = fastify.io as Server;
+
+    // Función auxiliar para calcular ranking final 
+    const calculateFinalRanking = (players: Record<string, Player>): { name: string; seleccionadas: number }[] => {
+      return Object.values(players || {})
+        .map((p: Player) => ({
+          name: p.name,
+          seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
+        }))
+        .sort((a, b) => b.seleccionadas - a.seleccionadas);
+    };
+
 
     io.on("connection", (socket) => {
       console.log("Cliente conectado:", socket.id);
@@ -98,9 +111,7 @@ async function startServer() {
             // Si ya no quedan jugadores, limpiar completamente la sala
             if (!updated || Object.keys(updated.players || {}).length === 0) {
               console.log(`🧹 Sala ${roomId} vacía, eliminando estado`);
-              await RoomService.deleteRoom?.(roomId); // si tienes ese método
-              // Si no lo tienes, puedes usar:
-              // await RoomService.createOrUpdateRoom(roomId, { players: {}, gameState: { host: "", isGameActive: false, winner: null, deck: [], calledCardIds: [] } });
+              await RoomService.deleteRoom?.(roomId);
               return;
             }
 
@@ -115,8 +126,6 @@ async function startServer() {
       });
 
 
-      // --- NUEVO: manejar actualizaciones de sala / gameState desde cliente ---
-      // Cliente emite: socket.emit("updateRoom", roomId, { players?: ..., gameState?: ... })
       socket.on("updateRoom", async (roomId: string, payload: any) => {
         try {
           if (!roomId || !payload) return;
@@ -143,15 +152,22 @@ async function startServer() {
           }
 
           // Si hay ganador o el juego se desactiva, asegurarse de limpiar las marcas
-          // así todos los clientes recibirán la sala con markedIndices vacíos.
           const shouldClearMarks =
             room.gameState?.winner != null ||
             (payload.gameState && payload.gameState.isGameActive === false);
+
+          // Si hay ganador, calcula el ranking con las marcas intactas.
+          if (room.gameState?.winner && room.players) {
+            const finalRanking = calculateFinalRanking(room.players as Record<string, Player>);
+            room.gameState.finalRanking = finalRanking;
+            console.log(`🏆 Ranking final calculado para ${roomId}:`, finalRanking);
+          }
 
           if (shouldClearMarks && room.players && typeof room.players === "object") {
             const players = room.players as Record<string, Player>;
             Object.keys(players).forEach((k: string) => {
               const current = players[k] || ({} as Player);
+              // Limpiar las marcas después de haber guardado el ranking
               players[k] = { ...current, markedIndices: [] };
             });
             room.players = players;
@@ -187,9 +203,18 @@ async function startServer() {
           // Si hay ganador o el juego se desactiva, limpiar marcas
           const shouldClearMarks =
             room.gameState?.winner != null || payload.gameState.isGameActive === false;
+
+          // Si hay ganador, calcula el ranking con las marcas intactas.
+          if (room.gameState?.winner && room.players) {
+            const finalRanking = calculateFinalRanking(room.players as Record<string, Player>);
+            room.gameState.finalRanking = finalRanking;
+            console.log(`🏆 Ranking final calculado (updateGame) para ${roomId}:`, finalRanking);
+          }
+
           if (shouldClearMarks && room.players) {
             Object.keys(room.players).forEach((k) => {
               const players = room.players as Record<string, Player>;
+              // Limpiar las marcas después de haber guardado el ranking
               players[k] = { ...(players[k] || {}), markedIndices: [] };
             });
           }
@@ -210,7 +235,6 @@ async function startServer() {
           socket.emit("error", { message: "Error al actualizar gameState", detail: String(err) });
         }
       });
-
     });
   });
 
