@@ -12,6 +12,8 @@ export interface GameState {
   deck: any[];
   calledCardIds: number[];
   timestamp: number;
+
+  finalRanking: { name: string; seleccionadas: number }[] | null;
 }
 
 export interface Room {
