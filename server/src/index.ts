@@ -30,41 +30,37 @@ async function startServer() {
       methods: ["GET", "POST"],
       credentials: true,
     },
+    pingInterval: 25000,
+    pingTimeout: 60000,
+    maxHttpBufferSize: 1e6,
   });
 
-  // 3️⃣ Configurar handlers cuando Fastify está listo
+  // usar IIFE async dentro del ready para poder usar await condicionalmente
   fastify.ready((err) => {
     if (err) throw err;
     const io = fastify.io as Server;
-
-    // Función auxiliar para calcular ranking final 
-    const calculateFinalRanking = (players: Record<string, Player>): { name: string; seleccionadas: number }[] => {
-      return Object.values(players || {})
-        .map((p: Player) => ({
-          name: p.name,
-          seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
-        }))
-        .sort((a, b) => b.seleccionadas - a.seleccionadas);
-    };
 
     // cargado condicional del adapter Redis para no romper compilación si no está instalado
     (async () => {
       if (process.env.REDIS_URL) {
         try {
-          const { createAdapter } = await import('@socket.io/redis-adapter');
-          const { createClient } = await import('redis');
+          // @ts-ignore - módulos dinámicos no se resuelven en compilación
+          const { createAdapter } = await import('@socket.io/redis-adapter') as any;
+          const { createClient } = await import('redis') as any;
           const pubClient = createClient({ url: process.env.REDIS_URL });
           const subClient = pubClient.duplicate();
           await Promise.all([pubClient.connect(), subClient.connect()]);
           io.adapter(createAdapter(pubClient, subClient));
           fastify.log.info("socket.io: Redis adapter conectado");
         } catch (e) {
-          fastify.log.error("No fue posible conectar Redis adapter:", e);
+          fastify.log.error("No fue posible conectar Redis adapter: " + (e instanceof Error ? e.message : String(e)));
         }
       }
 
       io.on("connection", (socket) => {
         console.log("Cliente conectado:", socket.id);
+        socket.data.roomId = null;
+        socket.data.playerName = null;
 
         // --- EXISTENTE: joinRoom / leaveRoom / disconnect ---
         socket.on("joinRoom", async ({ roomId, playerName, playerData }) => {
