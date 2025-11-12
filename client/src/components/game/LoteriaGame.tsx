@@ -19,6 +19,8 @@ import { IdleModal } from "./IdleModal";
 import { getRestriction } from "@/lib/loteria";
 import { cantarCarta, cantarCartaConAudio } from "@/lib/cantadito";
 import { ModeRequiredModal } from "./ModeRequiredModal"; // <-- añadido
+import { ConfirmExitModal } from "./ConfirmExitModal";
+
 import { ResponsiveScale } from "@/components/ResponsiveScale";
 
 interface LoteriaGameProps {
@@ -65,6 +67,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   const [cantaditoActivo, setCantaditoActivo] = useState(false);
 
   const [showModeModal, setShowModeModal] = useState(false); // <-- añadido
+  const [showExitModal, setShowExitModal] = useState(false);
 
   // Suscribirse a actualizaciones
   useEffect(() => {
@@ -656,7 +659,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                 <Button
                   size="icon"
                   className="bg-[#D4165C] text-white hover:bg-[#AA124A] border-2 border-primary"
-                  onClick={() => { window.location.href = "/"; }}
+                  onClick={() => setShowExitModal(true)}
                   aria-label="Salir de la sala"
                 >
                   <LogOut />
@@ -668,7 +671,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                 <Button
                   size="sm"
                   className="bg-[#D4165C] text-white hover:bg-[#AA124A] border-2 border-primary"
-                  onClick={() => { window.location.href = "/"; }}
+                  onClick={() => setShowExitModal(true)}
                 >
                   <LogOut />
 
@@ -702,6 +705,16 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
             }}
             onExit={() => {
               window.location.href = "/"; // vuelve al login
+            }}
+          />
+
+          {/* Modal de confirmación de salida */}
+          <ConfirmExitModal
+            open={showExitModal}
+            onClose={() => setShowExitModal(false)}
+            onConfirm={() => {
+              // confirmar salida: navegar a home (puedes cambiar por logout real si hay lógica)
+              window.location.href = "/";
             }}
           />
 
