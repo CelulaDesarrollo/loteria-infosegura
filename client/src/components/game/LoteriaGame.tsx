@@ -509,19 +509,36 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                           });
 
                           // AÑADIR EVENTO PARA DETENER BUCLE
-                          gameSocket.emit("stopGameLoop", roomId);
+                          await gameSocket.emit("stopGameLoop", roomId);
 
-                          await gameSocket.emit("updateRoom", roomId, {
+                          // Limpiar estado local ANTES de emitir updateRoom
+                          setRoomData(prev => ({
+                            ...(prev || {}),
+                            players: updatedPlayers,
+                            gameState: {
+                              ...prev?.gameState,
+                              isGameActive: false,
+                              winner: null,
+                              calledCardIds: [],
+                              deck: [],
+                            }
+                          }));
+
+                          // Emitir al servidor para persistencia
+                          gameSocket.emit("updateRoom", roomId, {
                             players: updatedPlayers,
                             gameState: {
                               ...gameState,
                               isGameActive: false,
                               winner: null,
                               calledCardIds: [],
+                              deck: [],
                             },
                           });
 
+                          // Resetear UI
                           setFirstCard(null); // reinicia carta inicial
+                          setRanking([]); // limpiar ranking si existe
                         }}
                         variant="destructive"
                       >
