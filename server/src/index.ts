@@ -13,7 +13,8 @@ async function startServer() {
     "https://loteria-infosegura-d9v8.vercel.app",
     // 2. Tu entorno de desarrollo local 
     "http://localhost:3000", // Asegúrate de que el puerto 3000 sea el correcto para tu cliente
-    "http://127.0.0.1:3000" // También soporta localhost con IP directa
+    "http://127.0.0.1:3000", // También soporta localhost con IP directa
+    "http://localhost:9002"
   ];
 
   // 1️⃣ CORS para endpoints normales (Fastify)
@@ -25,7 +26,7 @@ async function startServer() {
   // 2️⃣ Socket.IO con CORS explícito
   await fastify.register(fastifySocketIO, {
     cors: {
-      origin: ALLOWED_ORIGINS, 
+      origin: ALLOWED_ORIGINS,
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -314,8 +315,11 @@ async function startServer() {
   await RoomService.clearAllPlayers();
   console.log("Se limpiaron players históricos en la DB.");
 
-  await fastify.listen({ port: 3001, host: "0.0.0.0" });
-  console.log("Servidor corriendo en http://localhost:3001");
+  // ⭐ CORRECCIÓN CLAVE: Usar process.env.PORT
+  const port = parseInt(process.env.PORT || '3001', 10);
+  await fastify.listen({ port, host: "0.0.0.0" });
+
+  console.log(`Servidor corriendo en http://localhost:${port}`); // Actualiza el mensaje
 }
 
 // Ejecutar función principal
