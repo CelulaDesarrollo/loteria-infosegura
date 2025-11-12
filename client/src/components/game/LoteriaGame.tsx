@@ -193,6 +193,8 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     const finalRanking = roomData?.gameState?.finalRanking;
     if (finalRanking && finalRanking.length > 0) {
       setRanking(finalRanking);
+    } else {
+      setRanking([]);
     }
   }, [roomData?.gameState?.finalRanking]);
 
@@ -228,7 +230,8 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         isGameActive: true,
         winner: null,
         gameMode: selectedMode,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        finalRanking: null,
       }
     }));
     /* comentado para mostrar cartas de lado de Servidor 
@@ -267,7 +270,8 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       winner: null,
       calledCardIds: [],
       gameMode: null,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      finalRanking: null,
     };
 
     // Optimistic update
@@ -285,7 +289,8 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         winner: null,
         calledCardIds: [],
         gameMode: null, // limpia el modo en Firebase
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        finalRanking: null,
       }
     });
 
