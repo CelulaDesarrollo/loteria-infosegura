@@ -278,12 +278,10 @@ async function startServer() {
           // 1. Inicializa el juego (barajar mazo, limpiar marcas)
           const initialRoom = await RoomService.initializeGame(roomId, gameMode);
 
-          // 2. Inicia el bucle de llamadas automáticas (y ejecuta la primera llamada ya)
+          // 2. Inicia el bucle de llamadas automáticas (startCallingCards ya ejecuta la primera llamada)
           await RoomService.startCallingCards(roomId, io);
-          // forzar la primera carta inmediatamente para que clientes vean algo sin esperar el intervalo
-          await RoomService.callNextCard(roomId, io);
 
-          // Emitir la sala actualizada (gameUpdated ya es emitido por callNextCard)
+          // Emitir la sala actualizada (gameUpdated ya es emitido por startCallingCards/callNextCard)
           const updated = await RoomService.getRoom(roomId);
           io.to(roomId).emit("roomUpdated", updated);
         } catch (err) {
