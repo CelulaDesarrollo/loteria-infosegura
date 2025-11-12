@@ -76,19 +76,20 @@ export class RoomService {
     const room = await this.getRoom(roomId);
     if (!room) return;
 
-    const deck = room.gameState?.deck || [];
+    const deck = room.gameState?.deck || []; // ahora deck es array de IDs
     const called = Array.isArray(room.gameState?.calledCardIds) ? [...room.gameState.calledCardIds] : [];
 
     // Si no quedan cartas, ya terminó
-    const remaining = deck.filter((c: any) => !called.includes(c.id));
+    const remaining = deck.filter((id: any) => !called.includes(id));
     if (remaining.length === 0) {
       // si ya estaba terminado, no hacer nada
       return;
     }
 
     // Tomar la siguiente carta (usa el orden del deck)
-    const next = remaining[0];
-    called.push(next.id);
+    const nextId = remaining[0];
+    called.push(nextId);
+    console.log(`🎴 Sala ${roomId} -> llamada carta id=${nextId} (llamadas totales ${called.length}/${deck.length})`);
 
     room.gameState.calledCardIds = called;
     room.gameState.timestamp = Date.now();
