@@ -207,50 +207,37 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       setShowModeModal(true);
       return;
     }
-    /* comentado para mostrar cartas de lado de Servidor 
-    const newDeck = createDeck();
-    const updatedPlayers = { ...roomData.players };
-    Object.keys(updatedPlayers).forEach(pName => {
-      updatedPlayers[pName].markedIndices = [];
-    });
-    */
 
-    // Limpiar markedIndices para el nuevo juego
-    const updatedPlayers = { ...roomData.players };
-    Object.keys(updatedPlayers).forEach(pName => {
-      updatedPlayers[pName].markedIndices = [];
-    });
+    try {
+      // 1️⃣ Emitir al servidor para que inicie el bucle de cartas
+      await gameSocket.emit("startGameLoop", roomId, selectedMode);
 
-    // Optimistic update (solo el modo y el estado activo)
-    setRoomData(prev => ({
-      ...(prev || {}),
-      players: updatedPlayers,
-      gameState: {
-        ...(prev?.gameState || {}),
-        isGameActive: true,
-        winner: null,
-        gameMode: selectedMode,
-        timestamp: Date.now(),
-        finalRanking: null,
-      }
-    }));
-    /* comentado para mostrar cartas de lado de Servidor 
-    await gameSocket.emit("updateRoom", roomId, {
-      players: updatedPlayers,
-      gameState: {
-        ...roomData.gameState,
-        deck: newDeck,
-        calledCardIds: [newDeck[0].id],
-        isGameActive: true,
-        winner: null,
-        gameMode: selectedMode, // asegúrate que se use
-        timestamp: Date.now()
-      }
-    });
-    */
+      // 2️⃣ Limpiar markedIndices para el nuevo juego
+      const updatedPlayers = { ...roomData.players };
+      Object.keys(updatedPlayers).forEach(pName => {
+        updatedPlayers[pName].markedIndices = [];
+      });
 
-    setRanking([]);
-    setFirstCard(null);
+      // 3️⃣ Optimistic update (solo el modo y el estado activo)
+      setRoomData(prev => ({
+        ...(prev || {}),
+        players: updatedPlayers,
+        gameState: {
+          ...(prev?.gameState || {}),
+          isGameActive: true,
+          winner: null,
+          gameMode: selectedMode,
+          timestamp: Date.now(),
+          finalRanking: null,
+        }
+      }));
+
+      setRanking([]);
+      setFirstCard(null);
+    } catch (error) {
+      console.error("Error al iniciar juego:", error);
+      alert("Error al iniciar el juego. Intenta de nuevo.");
+    }
   };
 
 
@@ -288,7 +275,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         isGameActive: false,
         winner: null,
         calledCardIds: [],
-        gameMode: null, // limpia el modo en Firebase
+        gameMode: null,
         timestamp: Date.now(),
         finalRanking: null,
       }
