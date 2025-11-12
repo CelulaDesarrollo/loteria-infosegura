@@ -1,6 +1,8 @@
-import { io, Socket } from "socket.io-client";
+import { io } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 
 const BACKEND = "https://loteria-infosegura-server.onrender.com";
+// const BACKEND = "https://loteria-infosegura-production.up.railway.app";
 
 interface PlayerData {
     name: string;
@@ -33,7 +35,7 @@ class GameSocket {
             console.debug("[gameSocket] connected", this.socket.id);
         });
 
-        this.socket.on("disconnect", (reason) => {
+        this.socket.on("disconnect", (reason: string) => {
             console.debug("[gameSocket] disconnected", reason);
         });
     }

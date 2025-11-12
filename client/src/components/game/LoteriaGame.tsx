@@ -38,7 +38,8 @@ const GAME_MODE_LABELS: Record<string, string> = {
 
 export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: LoteriaGameProps) {
   const [ranking, setRanking] = useState<{ name: string; seleccionadas: number }[]>([]);
-  const [roomData, setRoomData] = useState(initialRoomData);
+  // tipar roomData como any para evitar errores de noImplicitAny en callbacks
+  const [roomData, setRoomData] = useState<any>(initialRoomData);
 
   // Evita recomputar ranking después de limpiar markedIndices
   const lastWinnerRef = useRef<string | null>(null);
@@ -68,24 +69,24 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   // Suscribirse a actualizaciones
   useEffect(() => {
     const unsubscribeUpdate = gameSocket.onGameUpdate((newState) => {
-      setRoomData(prev => ({ ...prev, gameState: newState }));
+      setRoomData((prev: any) => ({ ...prev, gameState: newState }));
     });
 
     const unsubscribeJoin = gameSocket.onPlayerJoined(({ playerName, playerData }) => {
-      setRoomData(prev => ({
+      setRoomData((prev: any) => ({
         ...(prev || {}),
         players: {
-          ...(prev.players || {}),
+          ...(prev?.players || {}),
           [playerName]: playerData
         }
       }));
     });
 
     const unsubscribeLeft = gameSocket.onPlayerLeft(({ playerName }) => {
-      setRoomData(prev => {
-        const newPlayers = { ...prev.players };
+      setRoomData((prev: any) => {
+        const newPlayers = { ...(prev?.players || {}) };
         delete newPlayers[playerName];
-        return { ...prev, players: newPlayers };
+        return { ...(prev || {}), players: newPlayers };
       });
     });
 
@@ -167,14 +168,14 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
           },
         });
 
-        setRoomData(prev => ({
+        setRoomData((prev: any) => ({
           ...(prev || {}),
           players: updatedPlayers,
           gameState: { ...(prev?.gameState || {}), winner, isGameActive: false },
         }));
       } else {
         // caso normal: solo marcar al jugador y emitir
-        setRoomData(prev => ({
+        setRoomData((prev: any) => ({
           ...(prev || {}),
           players: updatedPlayers,
           gameState: { ...(prev?.gameState || {}), winner, isGameActive: isGameActive },
@@ -222,7 +223,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       });
 
       // 3️⃣ Optimistic update (solo el modo y el estado activo)
-      setRoomData(prev => ({
+      setRoomData((prev: any) => ({
         ...(prev || {}),
         players: updatedPlayers,
         gameState: {
@@ -265,7 +266,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     };
 
     // Optimistic update
-    setRoomData(prev => ({
+    setRoomData((prev: any) => ({
       ...(prev || {}),
       players: updatedPlayers,
       gameState: newState
@@ -385,7 +386,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     };
 
     // Optimistic update: reemplazar tabla local antes de confirmar servidor
-    setRoomData(prev => ({
+    setRoomData((prev: any) => ({
       ...(prev || {}),
       players: updatedPlayers
     }));

@@ -4,6 +4,8 @@ import fastifySocketIO from "fastify-socket.io";
 import { Server } from "socket.io";
 import { RoomService } from "./services/roomService";
 import { Player } from "./types/game";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 
 async function startServer() {
   const fastify = Fastify({ logger: true });
@@ -47,6 +49,13 @@ async function startServer() {
         .sort((a, b) => b.seleccionadas - a.seleccionadas);
     };
 
+    if (process.env.REDIS_URL) {
+      const pubClient = createClient({ url: process.env.REDIS_URL });
+      const subClient = pubClient.duplicate();
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      io.adapter(createAdapter(pubClient, subClient));
+      fastify.log.info("socket.io: Redis adapter conectado");
+    }
 
     io.on("connection", (socket) => {
       console.log("Cliente conectado:", socket.id);
