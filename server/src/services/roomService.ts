@@ -6,10 +6,7 @@ interface DBRoom {
 }
 const cardIntervals: Map<string, any> = new Map();
 const CALL_INTERVAL = 3500; // 3.5 segundos entre cartas
-<<<<<<< HEAD
 const MAX_PLAYERS = 100; // ajustar si quieres
-=======
->>>>>>> parent of 5acf1ef (max_players y stopCallingCards error falta de variable y argumento correspondientemente)
 
 export class RoomService {
   static async getRoom(roomId: string): Promise<Room | null> {
@@ -123,12 +120,24 @@ export class RoomService {
   }
 
   // 4. Detener el bucle de llamadas
-  static stopCallingCards(roomId: string): void {
+  static async stopCallingCards(roomId: string): Promise<void> {
     const interval = cardIntervals.get(roomId);
     if (interval) {
       clearInterval(interval);
       cardIntervals.delete(roomId);
-      console.log(`🛑 Bucle de llamadas detenido para sala ${roomId}.`);
+      console.log(`✅ Intervalo detenido para sala ${roomId}`);
+    }
+
+    // Limpiar el estado del juego en la BD
+    const room = await this.getRoom(roomId);
+    if (room) {
+      room.gameState = {
+        ...room.gameState,
+        isGameActive: false,
+        calledCardIds: [],
+        deck: [],
+      };
+      await this.createOrUpdateRoom(roomId, room);
     }
   }
 

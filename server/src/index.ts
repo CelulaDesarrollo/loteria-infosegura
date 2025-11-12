@@ -266,13 +266,8 @@ async function startServer() {
 
       socket.on("startGameLoop", async (roomId: string, gameMode: string) => {
         try {
-          if (!roomId || !gameMode) {
-            socket.emit("error", { message: "Datos de inicio de juego incompletos." });
-            return;
-          }
-
           console.log(`➡️ Inicializando juego y bucle de llamadas para sala ${roomId} en modo ${gameMode}`);
-<<<<<<< HEAD
+
 
           // 1. Inicializa el juego (barajar mazo, limpiar marcas)
           const initialRoom = await RoomService.initializeGame(roomId, gameMode);
@@ -284,19 +279,25 @@ async function startServer() {
           io.to(roomId).emit("gameUpdated", initialRoom.gameState);
           io.to(roomId).emit("roomUpdated", initialRoom); // por si el cliente necesita el room completo
 
-=======
           await RoomService.initializeGame(roomId, gameMode);
-          await RoomService.startCallingCards(roomId);
->>>>>>> parent of 5acf1ef (max_players y stopCallingCards error falta de variable y argumento correspondientemente)
+          await RoomService.startCallingCards(roomId, io);
         } catch (err) {
-          console.error(`Error al iniciar el bucle de juego para sala ${roomId}:`, err);
-          socket.emit("error", { message: "Error al iniciar el juego.", detail: String(err) });
+          console.error("Error en startGameLoop:", err);
+          socket.emit("error", { message: "Error al iniciar juego" });
         }
       });
 
-      socket.on("stopGameLoop", (roomId: string) => {
-        RoomService.stopCallingCards(roomId);
-        // No es necesario emitir nada, el estado final del juego lo hará.
+      socket.on("stopGameLoop", async (roomId: string) => {
+        try {
+          console.log(`⏹️ Deteniendo bucle de cartas para sala ${roomId}`);
+          await RoomService.stopCallingCards(roomId);
+          const updated = await RoomService.getRoom(roomId);
+          io.to(roomId).emit("roomUpdated", updated);
+          io.to(roomId).emit("gameUpdated", updated?.gameState);
+        } catch (err) {
+          console.error("Error en stopGameLoop:", err);
+          socket.emit("error", { message: "Error al detener juego" });
+        }
       });
     });
 
