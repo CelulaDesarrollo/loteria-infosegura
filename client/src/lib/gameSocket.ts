@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 
-const BACKEND = "https://loteria-infosegura-production.up.railway.app";
+const BACKEND = "https://loteria-infosegura-server.onrender.com";
 
 interface PlayerData {
     name: string;
