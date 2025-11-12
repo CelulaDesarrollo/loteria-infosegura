@@ -74,34 +74,52 @@ export class RoomService {
   // 2. Lógica atómica para llamar a la siguiente carta
   static async callNextCard(roomId: string, io: any): Promise<void> {
     const room = await this.getRoom(roomId);
-    if (!room || !room.gameState.isGameActive || room.gameState.winner) {
-      // Detiene el intervalo si el juego ya no es válido
-      this.stopCallingCards(roomId);
+    if (!room) return;
+
+    const deck = room.gameState?.deck || [];
+    const called = Array.isArray(room.gameState?.calledCardIds) ? [...room.gameState.calledCardIds] : [];
+
+    // Si no quedan cartas, ya terminó
+    const remaining = deck.filter((c: any) => !called.includes(c.id));
+    if (remaining.length === 0) {
+      // si ya estaba terminado, no hacer nada
       return;
     }
 
-    const gameState = room.gameState;
+    // Tomar la siguiente carta (usa el orden del deck)
+    const next = remaining[0];
+    called.push(next.id);
 
-    if (gameState.deck.length === 0) {
-      console.log(`Sala ${roomId}: Mazo vacío. Finalizando llamadas automáticas.`);
-      this.stopCallingCards(roomId);
-      return;
-    }
+    room.gameState.calledCardIds = called;
+    room.gameState.timestamp = Date.now();
 
-    // 🛑 Lógica atómica de extracción de carta en el servidor
-    const nextCardId = gameState.deck.pop();
+    // Persistir estado con la nueva carta llamada
+    await this.createOrUpdateRoom(roomId, room);
 
-    if (nextCardId !== undefined) {
-      gameState.calledCardIds.push(nextCardId);
-      gameState.timestamp = Date.now();
+    // Notificar cliente(s) de la nueva carta
+    io.to(roomId).emit("gameUpdated", room.gameState);
+    io.to(roomId).emit("roomUpdated", room);
 
-      // Guardar el estado actualizado
+    // Si acabó el mazo tras esta carta => finalizar flujo
+    if (called.length >= deck.length) {
+      // 1) Calcular ranking final usando markedIndices actuales (antes de limpiar)
+      const ranking = Object.values(room.players || {}).map((p: any) => ({
+        name: p.name,
+        seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
+      })).sort((a, b) => b.seleccionadas - a.seleccionadas);
+
+      // 2) Actualizar gameState para indicar fin y adjuntar finalRanking.
+      room.gameState.isGameActive = false;
+      room.gameState.winner = null; // si no hay una regla de ganador automático
+      room.gameState.finalRanking = ranking;
+      room.gameState.timestamp = Date.now();
+
+      // NOTA: No limpiamos markedIndices aquí para que los clientes puedan ver las marcas al mostrar el ranking.
       await this.createOrUpdateRoom(roomId, room);
 
-      // Emitir el nuevo estado del juego a todos (usa el evento que el cliente ya escucha)
-      io.to(roomId).emit("gameUpdated", gameState);
-      // Si el cliente necesita actualizar players (ej. si hubo ganador y se limpiaron marcas),
-      // se debe emitir un updateRoom o los updates individuales de player.
+      // Emitir actualización final
+      io.to(roomId).emit("gameUpdated", room.gameState);
+      io.to(roomId).emit("roomUpdated", room);
     }
   }
 

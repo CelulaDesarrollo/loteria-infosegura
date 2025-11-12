@@ -53,6 +53,8 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   // Restricciones de marcado según modo de juego
   const [firstCard, setFirstCard] = useState<{ row: number; col: number } | null>(null);
+  // Estado que indica que el juego terminó (ganador o mazo agotado)
+  const gameEnded = !!gameState && (gameState.winner != null || gameState.isGameActive === false || (Array.isArray(gameState.finalRanking) && gameState.finalRanking.length > 0));
 
   // Manejo de inactividad
   const [lastActivity, setLastActivity] = useState(Date.now());
@@ -110,7 +112,8 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
   // Marcar carta
   const handleCardClick = async (card: CardType, index: number) => {
-    if (!player || roomData.gameState.winner || !roomData.gameState.calledCardIds) return;
+    // bloquear si no hay jugador local, juego terminado o no hay cartas llamadas aún
+    if (!player || gameEnded || !roomData.gameState?.calledCardIds) return;
     const { calledCardIds } = roomData.gameState;
     const isCalled = calledCardIds.includes(card.id);
 
@@ -679,8 +682,9 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
           {/* Modal que muestra el ganador */}
           <WinnerModal
-            open={!!gameState.winner}
-            ranking={ranking}
+            // Abrir modal si hay un winner O si el servidor calculó finalRanking (mazo agotado)
+            open={!!gameState?.winner || (Array.isArray(gameState?.finalRanking) && gameState.finalRanking.length > 0)}
+            ranking={Array.isArray(gameState?.finalRanking) && gameState.finalRanking.length > 0 ? gameState.finalRanking : ranking}
             gameMode={gameState.gameMode}
             currentPlayer={playerName}
             winnerName={gameState.winner}
