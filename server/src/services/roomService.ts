@@ -6,7 +6,10 @@ interface DBRoom {
 }
 const cardIntervals: Map<string, any> = new Map();
 const CALL_INTERVAL = 3500; // 3.5 segundos entre cartas
+<<<<<<< HEAD
 const MAX_PLAYERS = 100; // ajustar si quieres
+=======
+>>>>>>> parent of 5acf1ef (max_players y stopCallingCards error falta de variable y argumento correspondientemente)
 
 export class RoomService {
   static async getRoom(roomId: string): Promise<Room | null> {
