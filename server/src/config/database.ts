@@ -6,13 +6,11 @@ const dbPath = join(__dirname, '../../data/loteria.db');
 export const db = new Database(dbPath);
 
 // Mejoras de concurrencia para SQLite (WAL + timeout)
+// usar db.run("PRAGMA ...") en vez de db.pragma() para que TypeScript no marque error
 try {
-  // mejor rendimiento concurrente
-  db.pragma("journal_mode = WAL");
-  // durabilidad razonable
-  db.pragma("synchronous = NORMAL");
-  // espera hasta 5s si DB está bloqueada por otra transacción
-  db.pragma("busy_timeout = 5000");
+  db.run(`PRAGMA journal_mode = WAL;`);
+  db.run(`PRAGMA synchronous = NORMAL;`);
+  db.run(`PRAGMA busy_timeout = 5000;`);
 } catch (e) {
   console.warn("[database] no se pudo aplicar pragmas WAL/busy_timeout:", e);
 }
