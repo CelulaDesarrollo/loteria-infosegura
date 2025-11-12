@@ -5,21 +5,27 @@ import { Server } from "socket.io";
 import { RoomService } from "./services/roomService";
 import { Player } from "./types/game";
 
-// ... Las importaciones y la función startServer() comienzan aquí ...
-
 async function startServer() {
   const fastify = Fastify({ logger: true });
 
-  // 1️⃣ CORS para endpoints normales
+  const ALLOWED_ORIGINS = [
+    // 1. URL de tu cliente desplegado en Vercel
+    "https://loteria-infosegura-d9v8.vercel.app",
+    // 2. Tu entorno de desarrollo local 
+    "http://localhost:3000", // Asegúrate de que el puerto 3000 sea el correcto para tu cliente
+    "http://127.0.0.1:3000" // También soporta localhost con IP directa
+  ];
+
+  // 1️⃣ CORS para endpoints normales (Fastify)
   await fastify.register(fastifyCors, {
-    origin: ["https://loteria-infosegura-d9v8.vercel.app"],
+    origin: ALLOWED_ORIGINS,
     credentials: true,
   });
 
   // 2️⃣ Socket.IO con CORS explícito
   await fastify.register(fastifySocketIO, {
     cors: {
-      origin: ["https://loteria-infosegura-d9v8.vercel.app"],
+      origin: ALLOWED_ORIGINS, 
       methods: ["GET", "POST"],
       credentials: true,
     },
