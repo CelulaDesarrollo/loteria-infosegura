@@ -46,16 +46,17 @@ async function startServer() {
         try {
           // @ts-ignore - módulos dinámicos no se resuelven en compilación
           const { createAdapter } = await import('@socket.io/redis-adapter') as any;
+          // @ts-ignore - redis es opcional, solo si REDIS_URL está presente
           const { createClient } = await import('redis') as any;
-          const pubClient = createClient({ url: process.env.REDIS_URL });
-          const subClient = pubClient.duplicate();
-          await Promise.all([pubClient.connect(), subClient.connect()]);
-          io.adapter(createAdapter(pubClient, subClient));
-          fastify.log.info("socket.io: Redis adapter conectado");
-        } catch (e) {
-          fastify.log.error("No fue posible conectar Redis adapter: " + (e instanceof Error ? e.message : String(e)));
-        }
-      }
+           const pubClient = createClient({ url: process.env.REDIS_URL });
+           const subClient = pubClient.duplicate();
+           await Promise.all([pubClient.connect(), subClient.connect()]);
+           io.adapter(createAdapter(pubClient, subClient));
+           fastify.log.info("socket.io: Redis adapter conectado");
+         } catch (e) {
+           fastify.log.error("No fue posible conectar Redis adapter: " + (e instanceof Error ? e.message : String(e)));
+         }
+       }
 
       io.on("connection", (socket) => {
         console.log("Cliente conectado:", socket.id);
@@ -337,3 +338,13 @@ startServer().catch((err) => {
   console.error("❌ Error al iniciar el servidor:", err);
   process.exit(1);
 });
+
+// Helper: calcular ranking final basado en markedIndices actuales
+const calculateFinalRanking = (players: any) => {
+  return Object.values(players || {})
+    .map((p: any) => ({
+      name: p.name,
+      seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
+    }))
+    .sort((a, b) => b.seleccionadas - a.seleccionadas);
+};
