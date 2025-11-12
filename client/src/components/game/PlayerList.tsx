@@ -5,6 +5,7 @@ import { Crown, Plus, Users, Minus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import React from "react";
 
 interface PlayerState {
   name: string;
@@ -14,7 +15,7 @@ interface PlayerState {
 interface PlayerListProps {
   players: Record<string, PlayerState>;
   currentPlayerName: string;
-  hostName: string;
+  hostName?: string;
 }
 
 export function PlayerList({
@@ -26,6 +27,7 @@ export function PlayerList({
   const playerArray = Object.values(players);
 
   return (
+    // root: más compacto en móvil (menos padding/gap), mantiene estilo en md+
     <Card>
       <CardHeader>
         {/* Header simplified: removed room display */}
@@ -108,12 +110,13 @@ export function PlayerList({
                       */}
 
                       <span className="font-medium">
-                        <span className="text-[hsl(var(--foreground))]">{player.name}</span>
+                        <span className="text-[hsl(var(--foreground))]">
+                          {player.name}
+                        </span>
                         {player.name === currentPlayerName && (
                           <span className="text-[hsl(var(--primary))]"> (Tú)</span>
                         )}
                       </span>
-
                     </span>
                   </div>
                   {player.name === hostName && (

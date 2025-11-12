@@ -640,7 +640,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                   En pantallas md+ añadimos padding-bottom para reservar espacio
                   y que el botón pueda situarse "debajo" del tablero dentro del recuadro. */}
               <div className="md:pb-12">
-                <div className="w-[clamp(220px,28vw,400px)] aspect-[265/380]">
+                <div className="mx-auto w-[clamp(300px,92vw,560px)] md:w-[clamp(220px,28vw,400px)] aspect-[265/380]">
                   <GameBoard
                     board={player.board}
                     onCardClick={handleCardClick}
