@@ -275,19 +275,17 @@ async function startServer() {
         try {
           console.log(`➡️ Inicializando juego y bucle de llamadas para sala ${roomId} en modo ${gameMode}`);
 
-
           // 1. Inicializa el juego (barajar mazo, limpiar marcas)
           const initialRoom = await RoomService.initializeGame(roomId, gameMode);
 
-          // 2. Inicia el bucle de llamadas automáticas (llama a la primera carta inmediatamente)
+          // 2. Inicia el bucle de llamadas automáticas (y ejecuta la primera llamada ya)
           await RoomService.startCallingCards(roomId, io);
+          // forzar la primera carta inmediatamente para que clientes vean algo sin esperar el intervalo
+          await RoomService.callNextCard(roomId, io);
 
-          // Emitir a todos para que tengan el estado inicial con el deck listo y la primera carta llamada
-          io.to(roomId).emit("gameUpdated", initialRoom.gameState);
-          io.to(roomId).emit("roomUpdated", initialRoom); // por si el cliente necesita el room completo
-
-          await RoomService.initializeGame(roomId, gameMode);
-          await RoomService.startCallingCards(roomId, io);
+          // Emitir la sala actualizada (gameUpdated ya es emitido por callNextCard)
+          const updated = await RoomService.getRoom(roomId);
+          io.to(roomId).emit("roomUpdated", updated);
         } catch (err) {
           console.error("Error en startGameLoop:", err);
           socket.emit("error", { message: "Error al iniciar juego" });

@@ -110,9 +110,17 @@ export class RoomService {
     // Asegura que no haya otro temporizador corriendo para esta sala
     this.stopCallingCards(roomId);
 
-    // Programa las llamadas sucesivas
+    // Llamar una carta inmediatamente y luego programar el intervalo
+    try {
+      await this.callNextCard(roomId, io);
+    } catch (e) {
+      console.error(`Error al llamar la carta inicial para ${roomId}`, e);
+    }
+
     const interval = setInterval(() => {
-      this.callNextCard(roomId, io);
+      this.callNextCard(roomId, io).catch((err) => {
+        console.error(`Error en callNextCard para ${roomId}:`, err);
+      });
     }, CALL_INTERVAL);
 
     cardIntervals.set(roomId, interval);
