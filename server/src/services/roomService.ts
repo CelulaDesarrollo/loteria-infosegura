@@ -6,6 +6,7 @@ interface DBRoom {
 }
 const cardIntervals: Map<string, any> = new Map();
 const CALL_INTERVAL = 3500; // 3.5 segundos entre cartas
+const MAX_PLAYERS = 100; // límite de jugadores por sala
 
 export class RoomService {
   static async getRoom(roomId: string): Promise<Room | null> {

@@ -268,7 +268,7 @@ async function startServer() {
         try {
           console.log(`➡️ Inicializando juego y bucle de llamadas para sala ${roomId} en modo ${gameMode}`);
           await RoomService.initializeGame(roomId, gameMode);
-          await RoomService.startCallingCards(roomId);
+          await RoomService.startCallingCards(roomId, io);
         } catch (err) {
           console.error("Error en startGameLoop:", err);
           socket.emit("error", { message: "Error al iniciar juego" });
