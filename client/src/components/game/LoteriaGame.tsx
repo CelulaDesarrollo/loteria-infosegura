@@ -40,7 +40,6 @@ const GAME_MODE_LABELS: Record<string, string> = {
 
 export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: LoteriaGameProps) {
   const [ranking, setRanking] = useState<{ name: string; seleccionadas: number }[]>([]);
-  // tipar roomData como any para evitar errores de noImplicitAny en callbacks
   const [roomData, setRoomData] = useState<any>(initialRoomData);
 
   // Evita recomputar ranking después de limpiar markedIndices
@@ -52,7 +51,20 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   const player = rawPlayer
     ? { ...rawPlayer, markedIndices: Array.isArray(rawPlayer.markedIndices) ? rawPlayer.markedIndices : [] }
     : undefined;
-  const isHost = gameState?.host === playerName;
+  // isHost ahora es un estado reactivo que se actualiza cuando cambia gameState.host
+  const [isHostState, setIsHostState] = useState(false);
+  
+  // Efecto para actualizar isHostState cuando cambia el host en gameState
+  useEffect(() => {
+    const newIsHost = gameState?.host === playerName;
+    setIsHostState(newIsHost);
+    // Log para debugging
+    if (newIsHost && !isHostState) {
+      console.log(`✅ ${playerName} ahora es el anfitrión`);
+    }
+  }, [gameState?.host, playerName]);
+
+  const isHost = isHostState;
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   // Restricciones de marcado según modo de juego
   const [firstCard, setFirstCard] = useState<{ row: number; col: number } | null>(null);
@@ -73,6 +85,10 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   useEffect(() => {
     const unsubscribeUpdate = gameSocket.onGameUpdate((newState) => {
       setRoomData((prev: any) => ({ ...prev, gameState: newState }));
+    });
+
+    const unsubscribeRoom = gameSocket.onRoomUpdate((room) => {
+      setRoomData(room);
     });
 
     const unsubscribeJoin = gameSocket.onPlayerJoined(({ playerName, playerData }) => {
@@ -96,6 +112,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     // Limpieza al desmontar
     return () => {
       unsubscribeUpdate();
+      unsubscribeRoom();
       unsubscribeJoin();
       unsubscribeLeft();
     };

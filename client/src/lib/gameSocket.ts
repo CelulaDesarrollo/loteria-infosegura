@@ -56,10 +56,14 @@ class GameSocket {
         return () => this.socket.off("roomJoined", cb);
     }
 
-    onGameUpdate(cb: (state: any) => void) {
-        const wrapper = (payload: any) => cb(payload);
-        this.socket.on("gameUpdated", wrapper);
-        return () => this.socket.off("gameUpdated", wrapper);
+    onGameUpdate(callback: (state: any) => void) {
+        this.socket.on("gameUpdated", callback);
+        return () => this.socket.off("gameUpdated", callback);
+    }
+
+    onRoomUpdate(callback: (room: any) => void) {
+        this.socket.on("roomUpdated", callback);
+        return () => this.socket.off("roomUpdated", callback);
     }
 
     onPlayerJoined(cb: (payload: { playerName: string; playerData: PlayerData }) => void) {
