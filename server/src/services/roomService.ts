@@ -251,4 +251,81 @@ export class RoomService {
     }
   }
 
+  // marcar jugador como activo (actualiza lastSeen/isOnline)
+  static async markPlayerActive(roomId: string, playerName: string) {
+    const room = await this.getRoom(roomId);
+    if (!room) return;
+    const key = Object.keys(room.players || {}).find(k => k.trim().toLowerCase() === playerName.trim().toLowerCase());
+    if (!key) return;
+    const p = room.players[key] || {};
+    p.isOnline = true;
+    p.lastSeen = Date.now();
+    room.players[key] = p;
+    await this.createOrUpdateRoom(roomId, room);
+  }
+
+  // marcar jugador como offline (no lo borra inmediatamente)
+  static async markPlayerOffline(roomId: string, playerName: string) {
+    const room = await this.getRoom(roomId);
+    if (!room) return;
+    const key = Object.keys(room.players || {}).find(k => k.trim().toLowerCase() === playerName.trim().toLowerCase());
+    if (!key) return;
+    const p = room.players[key] || {};
+    p.isOnline = false;
+    p.lastSeen = Date.now();
+    room.players[key] = p;
+    await this.createOrUpdateRoom(roomId, room);
+  }
+
+  // limpiar jugadores que llevan inactivos > timeoutMs; reasigna host o borra sala si está vacía
+  static async cleanupStalePlayers(timeoutMs = 90_000): Promise<{ roomId: string; room?: Room }[]> {
+    const now = Date.now();
+    const modified: { roomId: string; room?: Room }[] = [];
+    const rows = await dbAllAsync<{ id: string; data: string }>('SELECT id, data FROM rooms', []);
+    for (const row of rows) {
+      try {
+        const room = JSON.parse(row.data) as Room;
+        let changed = false;
+        const players = room.players || {};
+        for (const k of Object.keys(players)) {
+          const p = players[k] as any;
+          // si no tiene lastSeen y está marcado offline hace cleanup tras timeout
+          const lastSeen = typeof p.lastSeen === 'number' ? p.lastSeen : 0;
+          if (p.isOnline === false && (now - lastSeen) >= timeoutMs) {
+            delete players[k];
+            changed = true;
+          } else if (p.isOnline !== true && (now - lastSeen) >= timeoutMs) {
+            // si no está online y pasó el timeout, quitarlo
+            delete players[k];
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          // reasignar host si el host ya no existe o no está online
+          if (room.gameState) {
+            const hostKey = room.gameState.host;
+            if (!hostKey || !(players && players[hostKey])) {
+              const remaining = Object.keys(players || {});
+              room.gameState.host = remaining.length > 0 ? remaining[0] : '';
+            }
+          }
+
+          // si no quedan players, eliminar sala DB
+          if (!players || Object.keys(players).length === 0) {
+            await this.deleteRoom(row.id);
+            modified.push({ roomId: row.id, room: undefined });
+            continue;
+          }
+
+          room.players = players;
+          await this.createOrUpdateRoom(row.id, room);
+          modified.push({ roomId: row.id, room });
+        }
+      } catch (e) {
+        console.error('cleanupStalePlayers: error parsing row', row.id, e);
+      }
+    }
+    return modified;
+  }
 }
