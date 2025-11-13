@@ -9,6 +9,19 @@ const CALL_INTERVAL = 3500; // 3.5 segundos entre cartas
 const MAX_PLAYERS = 100; // ajustar según necesidad
 
 export class RoomService {
+  // locks por sala para serializar operaciones asíncronas (evitar carreras locales)
+  private static roomLocks: Map<string, Promise<void>> = new Map();
+
+  private static enqueue(roomId: string, fn: () => Promise<void>) {
+    const prev = this.roomLocks.get(roomId) || Promise.resolve();
+    const next = prev.then(() => fn()).catch((e) => {
+      console.error(`roomLocks[${roomId}] error:`, e);
+    });
+    // guardar la promesa encadenada (no await aquí)
+    this.roomLocks.set(roomId, next);
+    return next;
+  }
+
   static async getRoom(roomId: string): Promise<Room | null> {
     const result = (await dbGetAsync<DBRoom>('SELECT data FROM rooms WHERE id = ?', [roomId])) as DBRoom | undefined;
     return result ? (JSON.parse(result.data) as Room) : null;
@@ -73,61 +86,55 @@ export class RoomService {
   }
   // 2. Lógica atómica para llamar a la siguiente carta
   static async callNextCard(roomId: string, io: any): Promise<void> {
-    const room = await this.getRoom(roomId);
-    if (!room) return;
+    // Serializar por sala para evitar condiciones de carrera locales
+    await this.enqueue(roomId, async () => {
+      const room = await this.getRoom(roomId);
+      if (!room) return;
 
-    const deck = room.gameState?.deck || []; // ahora deck es array de IDs
-    const called = Array.isArray(room.gameState?.calledCardIds) ? [...room.gameState.calledCardIds] : [];
+      const deck = room.gameState?.deck || [];
+      const called = Array.isArray(room.gameState?.calledCardIds) ? [...room.gameState.calledCardIds] : [];
 
-    // Si no quedan cartas, ya terminó
-    const remaining = deck.filter((id: any) => !called.includes(id));
-    if (remaining.length === 0) {
-      // si ya estaba terminado, no hacer nada
-      return;
-    }
+      const remaining = deck.filter((id: any) => !called.includes(id));
+      if (remaining.length === 0) {
+        return;
+      }
 
-    // Tomar la siguiente carta (usa el orden del deck)
-    const nextId = remaining[0];
-    called.push(nextId);
-    console.log(`🎴 Sala ${roomId} -> llamada carta id=${nextId} (llamadas totales ${called.length}/${deck.length})`);
+      const nextId = remaining[0];
+      called.push(nextId);
+      console.log(`🎴 Sala ${roomId} -> llamada carta id=${nextId} (llamadas totales ${called.length}/${deck.length})`);
 
-    room.gameState.calledCardIds = called;
-    room.gameState.timestamp = Date.now();
-
-    // Persistir estado con la nueva carta llamada
-    await this.createOrUpdateRoom(roomId, room);
-
-    // Notificar cliente(s) de la nueva carta
-    io.to(roomId).emit("gameUpdated", room.gameState);
-    io.to(roomId).emit("roomUpdated", room);
-
-    // Si acabó el mazo tras esta carta => finalizar flujo
-    if (called.length >= deck.length) {
-      // 1) Calcular ranking final usando markedIndices actuales (antes de limpiar)
-      const ranking = Object.values(room.players || {}).map((p: any) => ({
-        name: p.name,
-        seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
-      })).sort((a, b) => b.seleccionadas - a.seleccionadas);
-
-      // 2) Actualizar gameState para indicar fin y adjuntar finalRanking.
-      room.gameState.isGameActive = false;
-      room.gameState.winner = null; // si no hay una regla de ganador automático
-      room.gameState.finalRanking = ranking;
+      room.gameState.calledCardIds = called;
       room.gameState.timestamp = Date.now();
-
-      // NOTA: No limpiamos markedIndices aquí para que los clientes puedan ver las marcas al mostrar el ranking.
       await this.createOrUpdateRoom(roomId, room);
 
-      // Emitir actualización final
       io.to(roomId).emit("gameUpdated", room.gameState);
       io.to(roomId).emit("roomUpdated", room);
-    }
+
+      if (called.length >= deck.length) {
+        const ranking = Object.values(room.players || {}).map((p: any) => ({
+          name: p.name,
+          seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
+        })).sort((a, b) => b.seleccionadas - a.seleccionadas);
+
+        room.gameState.isGameActive = false;
+        room.gameState.winner = null;
+        room.gameState.finalRanking = ranking;
+        room.gameState.timestamp = Date.now();
+
+        await this.createOrUpdateRoom(roomId, room);
+        io.to(roomId).emit("gameUpdated", room.gameState);
+        io.to(roomId).emit("roomUpdated", room);
+      }
+    });
   }
 
   // 3. Iniciar el bucle de llamadas automáticas
   static async startCallingCards(roomId: string, io: any): Promise<void> {
-    // Asegura que no haya otro temporizador corriendo para esta sala
-    this.stopCallingCards(roomId);
+    // Si ya hay un intervalo corriendo en este proceso, no crear otro
+    if (cardIntervals.has(roomId)) {
+      console.log(`⏱️ Ya existe un bucle para ${roomId}, omitiendo nuevo inicio.`);
+      return;
+    }
 
     // Llamar una carta inmediatamente y luego programar el intervalo
     try {
@@ -154,18 +161,8 @@ export class RoomService {
       cardIntervals.delete(roomId);
       console.log(`✅ Intervalo detenido para sala ${roomId}`);
     }
-
-    // Limpiar el estado del juego en la BD
-    const room = await this.getRoom(roomId);
-    if (room) {
-      room.gameState = {
-        ...room.gameState,
-        isGameActive: false,
-        calledCardIds: [],
-        deck: [],
-      };
-      await this.createOrUpdateRoom(roomId, room);
-    }
+    // Nota: NO modificamos el estado en BD aquí para evitar borrar el deck inmediatamente
+    // (el control de persistencia/limpieza debe ser explícito desde stopGameLoop o updateRoom).
   }
 
   // añade jugador con retorno claro; si host está vacío se asigna al primer jugador activo

@@ -8,25 +8,43 @@ import { Player } from "./types/game";
 async function startServer() {
   const fastify = Fastify({ logger: true });
 
-  const ALLOWED_ORIGINS = [
-    // 1. URL de tu cliente desplegado en Vercel
-    "https://loteria-infosegura-d9v8.vercel.app",
-    // 2. Tu entorno de desarrollo local 
-    "http://localhost:3000", // Asegúrate de que el puerto 3000 sea el correcto para tu cliente
-    "http://127.0.0.1:3000", // También soporta localhost con IP directa
-    "http://localhost:9002"
+  // Construir orígenes permitidos según entorno (agrega aquí tus URLs de cliente)
+  const PROD_CLIENT = process.env.CLIENT_URL_PROD || "https://loteria-infosegura-d9v8.vercel.app";
+  const DEV_CLIENT = process.env.CLIENT_URL_DEV || "http://localhost:9002";
+  const EXTRA_DEV = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:9002",
   ];
+
+  const allowedOrigins = new Set<string>([PROD_CLIENT, DEV_CLIENT, ...EXTRA_DEV]);
+  const isDev = process.env.NODE_ENV !== "production";
+
+  // Helper para validar origin en runtime (puedes loguear para depuración)
+  const originValidator = (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin) return cb(null, true); // allow non-browser tools / same-origin/no-origin (e.g. mobile native, curl)
+    if (allowedOrigins.has(origin)) return cb(null, true);
+    // En desarrollo puedes permitir todo temporalmente (opcional)
+    if (isDev) {
+      console.warn("[CORS] origin not in allowlist, allowing in dev:", origin);
+      return cb(null, true);
+    }
+    cb(new Error("Not allowed by CORS"), false);
+  };
+
+  // Para referencia/depuración imprime lista de orígenes permitidos
+  console.log("CORS allowed origins:", Array.from(allowedOrigins));
 
   // 1️⃣ CORS para endpoints normales (Fastify)
   await fastify.register(fastifyCors, {
-    origin: ALLOWED_ORIGINS,
+    origin: originValidator,
     credentials: true,
   });
 
   // 2️⃣ Socket.IO con CORS explícito
   await fastify.register(fastifySocketIO, {
     cors: {
-      origin: ALLOWED_ORIGINS,
+      origin: (origin: string, cb: any) => originValidator(origin, cb),
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -287,20 +305,27 @@ async function startServer() {
           try {
             console.log(`➡️ Inicializando juego y bucle de llamadas para sala ${roomId} en modo ${gameMode}`);
 
-            // 1. Inicializa el juego (barajar mazo, limpiar marcas)
-            const initialRoom = await RoomService.initializeGame(roomId, gameMode);
+            // Guardar: si ya hay juego activo no reiniciamos (evitar duplicados)
+            const existing = await RoomService.getRoom(roomId);
+            if (existing?.gameState?.isGameActive) {
+              console.log(`startGameLoop ignorado para ${roomId}: juego ya activo.`);
+              return;
+            }
 
-            // 2. Inicia el bucle de llamadas automáticas (startCallingCards ya ejecuta la primera llamada)
-            await RoomService.startCallingCards(roomId, io);
-
-            // Emitir la sala actualizada (gameUpdated ya es emitido por startCallingCards/callNextCard)
-            const updated = await RoomService.getRoom(roomId);
-            io.to(roomId).emit("roomUpdated", updated);
-          } catch (err) {
-            console.error("Error en startGameLoop:", err);
-            socket.emit("error", { message: "Error al iniciar juego" });
-          }
-        });
+             // 1. Inicializa el juego (barajar mazo, limpiar marcas)
+             const initialRoom = await RoomService.initializeGame(roomId, gameMode);
+ 
+             // 2. Inicia el bucle de llamadas automáticas (startCallingCards ya ejecuta la primera llamada)
+             await RoomService.startCallingCards(roomId, io);
+ 
+             // Emitir la sala actualizada (gameUpdated ya es emitido por startCallingCards/callNextCard)
+             const updated = await RoomService.getRoom(roomId);
+             io.to(roomId).emit("roomUpdated", updated);
+           } catch (err) {
+             console.error("Error en startGameLoop:", err);
+             socket.emit("error", { message: "Error al iniciar juego" });
+           }
+         });
 
         socket.on("stopGameLoop", async (roomId: string) => {
           try {
