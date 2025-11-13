@@ -76,11 +76,7 @@ async function startServer() {
       } catch (e) {
         fastify.log.error("Error en cleanupStalePlayers: " + (e instanceof Error ? e.message : String(e)));
       }
-    }, CLEANUP_INTERVAL);
-  } catch (e) {
-    fastify.log.error("Error en cleanupStalePlayers: " + (e instanceof Error ? e.message : String(e)));
-  }
-    }, CLEANUP_INTERVAL);
+    }, CLEANUP_INTERVAL);     
 
     io.on("connection", (socket) => {
       console.log("Cliente conectado:", socket.id);
@@ -328,34 +324,34 @@ async function startServer() {
             return;
           }
 
-           // 1. Inicializa el juego (barajar mazo, limpiar marcas)
-             const initialRoom = await RoomService.initializeGame(roomId, gameMode);
- 
-             // 2. Inicia el bucle de llamadas automáticas (startCallingCards ya ejecuta la primera llamada)
-             await RoomService.startCallingCards(roomId, io);
- 
-             // Emitir la sala actualizada (gameUpdated ya es emitido por startCallingCards/callNextCard)
-             const updated = await RoomService.getRoom(roomId);
-             io.to(roomId).emit("roomUpdated", updated);
-           } catch (err) {
-             console.error("Error en startGameLoop:", err);
-             socket.emit("error", { message: "Error al iniciar juego" });
-           }
-         });
+          // 1. Inicializa el juego (barajar mazo, limpiar marcas)
+          const initialRoom = await RoomService.initializeGame(roomId, gameMode);
 
-        socket.on("stopGameLoop", async (roomId: string) => {
-          try {
-            console.log(`⏹️ Deteniendo bucle de cartas para sala ${roomId}`);
-            await RoomService.stopCallingCards(roomId);
-            const updated = await RoomService.getRoom(roomId);
-            io.to(roomId).emit("roomUpdated", updated);
-            io.to(roomId).emit("gameUpdated", updated?.gameState);
-          } catch (err) {
-            console.error("Error en stopGameLoop:", err);
-            socket.emit("error", { message: "Error al detener juego" });
-          }
-        });
+          // 2. Inicia el bucle de llamadas automáticas (startCallingCards ya ejecuta la primera llamada)
+          await RoomService.startCallingCards(roomId, io);
+
+          // Emitir la sala actualizada (gameUpdated ya es emitido por startCallingCards/callNextCard)
+          const updated = await RoomService.getRoom(roomId);
+          io.to(roomId).emit("roomUpdated", updated);
+        } catch (err) {
+          console.error("Error en startGameLoop:", err);
+          socket.emit("error", { message: "Error al iniciar juego" });
+        }
       });
+
+      socket.on("stopGameLoop", async (roomId: string) => {
+        try {
+          console.log(`⏹️ Deteniendo bucle de cartas para sala ${roomId}`);
+          await RoomService.stopCallingCards(roomId);
+          const updated = await RoomService.getRoom(roomId);
+          io.to(roomId).emit("roomUpdated", updated);
+          io.to(roomId).emit("gameUpdated", updated?.gameState);
+        } catch (err) {
+          console.error("Error en stopGameLoop:", err);
+          socket.emit("error", { message: "Error al detener juego" });
+        }
+      });
+    });
 
     // (removed stray IIFE closure — fastify.ready callback ya está correctamente cerrado arriba)
   }); // <-- cierre correcto de fastify.ready
