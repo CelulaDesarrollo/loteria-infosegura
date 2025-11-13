@@ -41,7 +41,7 @@ export function ConfirmExitModal({ open, onClose, onConfirm }: ConfirmExitModalP
             ¿Salir de la sala?
           </AlertDialogTitle>
           <AlertDialogDescription className="text-center text-sm text-muted-foreground mt-2">
-            Si sales de la sala perderás la conexión y tu progreso local. ¿Estás seguro de que deseas salir?
+            Si sales de la sala perderás la conexión y tu progreso en el juego. ¿Estás seguro de que deseas salir?
           </AlertDialogDescription>
         </AlertDialogHeader>
 

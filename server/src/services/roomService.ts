@@ -328,4 +328,16 @@ export class RoomService {
     }
     return modified;
   }
+
+  // devuelve listado de salas (id + parsed room) — útil para admin
+  static async listRooms(): Promise<{ id: string; room?: Room }[]> {
+    const rows = await dbAllAsync<{ id: string; data: string }>('SELECT id, data FROM rooms', []);
+    return rows.map(r => {
+      try {
+        return { id: r.id, room: JSON.parse(r.data) as Room };
+      } catch {
+        return { id: r.id, room: undefined };
+      }
+    });
+  }
 }

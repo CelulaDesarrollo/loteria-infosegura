@@ -19,8 +19,9 @@ async function startServer() {
 
   const allowedOrigins = new Set<string>([PROD_CLIENT, DEV_CLIENT, ...EXTRA_DEV]);
   const isDev = process.env.NODE_ENV !== "production";
+  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "changeme_admin_token"; // cambia en prod
 
-  // Helper para validar origin en runtime (puedes loguear para depuración)
+  // Helper para validar origin in runtime (puedes loguear para depuración)
   const originValidator = (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
     if (!origin) return cb(null, true); // allow non-browser tools / same-origin/no-origin (e.g. mobile native, curl)
     if (allowedOrigins.has(origin)) return cb(null, true);
@@ -34,6 +35,60 @@ async function startServer() {
 
   // Para referencia/depuración imprime lista de orígenes permitidos
   console.log("CORS allowed origins:", Array.from(allowedOrigins));
+
+  // --- RUTAS ADMIN (protegidas por header x-admin-token) ---
+  fastify.route({
+    method: 'GET',
+    url: '/admin/rooms',
+    handler: async (req, reply) => {
+      const token = (req.headers['x-admin-token'] as string) || '';
+      if (token !== ADMIN_TOKEN) return reply.code(401).send({ error: 'unauthorized' });
+      const list = await RoomService.listRooms();
+      return reply.send(list);
+    }
+  });
+  
+  fastify.route({
+    method: 'GET',
+    url: '/admin/rooms/:roomId',
+    handler: async (req, reply) => {
+      const token = (req.headers['x-admin-token'] as string) || '';
+      if (token !== ADMIN_TOKEN) return reply.code(401).send({ error: 'unauthorized' });
+      const { roomId } = req.params as any;
+      const room = await RoomService.getRoom(roomId);
+      return reply.send({ id: roomId, room });
+    }
+  });
+  
+  fastify.route({
+    method: 'POST',
+    url: '/admin/rooms/:roomId/players/:playerName/remove',
+    handler: async (req, reply) => {
+      const token = (req.headers['x-admin-token'] as string) || '';
+      if (token !== ADMIN_TOKEN) return reply.code(401).send({ error: 'unauthorized' });
+      const { roomId, playerName } = req.params as any;
+      try {
+        await RoomService.removePlayer(roomId, playerName);
+        // notificar por socket si está disponible
+        const io = fastify.io as Server | undefined;
+        const updated = await RoomService.getRoom(roomId);
+        if (io) {
+          io.to(roomId).emit('playerLeft', { playerName });
+          io.to(roomId).emit('roomUpdated', updated);
+          if (updated?.gameState) io.to(roomId).emit('gameUpdated', updated.gameState);
+          // desconectar sockets que tuvieran ese playerName dentro de esa room
+          io.sockets.sockets.forEach((s: any) => {
+            if (s.data?.roomId === roomId && s.data?.playerName === playerName) {
+              try { s.disconnect(true); } catch (_) { /* noop */ }
+            }
+          });
+        }
+        return reply.send({ ok: true });
+      } catch (e) {
+        return reply.code(500).send({ error: String(e) });
+      }
+    }
+  });
 
   // 1️⃣ CORS para endpoints normales (Fastify)
   await fastify.register(fastifyCors, {
