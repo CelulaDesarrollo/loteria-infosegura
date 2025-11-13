@@ -353,10 +353,7 @@ async function startServer() {
         });
       });
 
-    })().catch((e) => {
-      console.error("Error en inicialización async dentro de fastify.ready:", e);
-      throw e;
-    });
+    // (removed stray IIFE closure — fastify.ready callback ya está correctamente cerrado arriba)
   }); // <-- cierre correcto de fastify.ready
 
   // 4️⃣ Iniciar servidor: limpiar players históricos y levantar listener
