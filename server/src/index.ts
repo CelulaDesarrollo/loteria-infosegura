@@ -357,20 +357,18 @@ async function startServer() {
       console.error("Error en inicialización async dentro de fastify.ready:", e);
       throw e;
     });
-  });
+  }); // <-- cierre correcto de fastify.ready
 
-  // 4️⃣ Iniciar servidor
+  // 4️⃣ Iniciar servidor: limpiar players históricos y levantar listener
   await RoomService.clearAllPlayers();
   console.log("Se limpiaron players históricos en la DB.");
 
-  // ⭐ CORRECCIÓN CLAVE: Usar process.env.PORT
-  const port = parseInt(process.env.PORT || '3001', 10);
+  const port = parseInt(process.env.PORT || "3001", 10);
   await fastify.listen({ port, host: "0.0.0.0" });
 
-  console.log(`Servidor corriendo en http://localhost:${port}`); // Actualiza el mensaje
-}
+} // <-- cierre de la función startServer
 
-// Ejecutar función principal
+// arranca la función principal y captura errores
 startServer().catch((err) => {
   console.error("❌ Error al iniciar el servidor:", err);
   process.exit(1);
