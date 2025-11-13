@@ -63,7 +63,7 @@ async function startServer() {
     const CLEANUP_INTERVAL = 30_000; // cada 30s
     setInterval(async () => {
       try {
-        const changes = await RoomService.cleanupStalePlayers(90_000); // timeout 90s
+        const changes = await RoomService.cleanupStalePlayers(10_000); // timeout 90s
         for (const ch of changes) {
           if (!ch.room) {
             // sala eliminada
