@@ -154,25 +154,33 @@ async function startServer() {
 
         if (roomId && playerName) {
           try {
-            // marcar offline y dejar que cleanup elimine si es necesario
-            await RoomService.markPlayerOffline(roomId, playerName);
-            // obtener sala actualizada y emitir (si sigue existiendo)
-            const updated = await RoomService.getRoom(roomId);
-            if (!updated || Object.keys(updated.players || {}).length === 0) {
-              // si ya no hay players, deleteRoom se encargará en cleanup; opcionalmente borrar ahora
-              await RoomService.deleteRoom?.(roomId);
-              return;
+            const room = await RoomService.getRoom(roomId);
+            // Si el juego está activo, eliminar inmediatamente al jugador
+            // En caso contrario, solo marcar offline (cleanup lo eliminará después)
+            if (room?.gameState?.isGameActive) {
+              console.log(`🔥 Juego activo: eliminando jugador ${playerName} de sala ${roomId}`);
+              await RoomService.removePlayer(roomId, playerName);
+            } else {
+              // Si no hay juego activo, marcar offline para cleanup eventual
+              await RoomService.markPlayerOffline(roomId, playerName);
             }
+             // obtener sala actualizada y emitir (si sigue existiendo)
+             const updated = await RoomService.getRoom(roomId);
+             if (!updated || Object.keys(updated.players || {}).length === 0) {
+               // si ya no hay players, deleteRoom se encargará en cleanup; opcionalmente borrar ahora
+               await RoomService.deleteRoom?.(roomId);
+               return;
+             }
 
-            io.to(roomId).emit("playerLeft", { playerName });
-            io.to(roomId).emit("roomUpdated", updated);
-            if (updated?.gameState) io.to(roomId).emit("gameUpdated", updated.gameState);
+             io.to(roomId).emit("playerLeft", { playerName });
+             io.to(roomId).emit("roomUpdated", updated);
+             if (updated?.gameState) io.to(roomId).emit("gameUpdated", updated.gameState);
 
-          } catch (err) {
-            console.error("Error al remover jugador en disconnect:", err);
-          }
-        }
-      });
+           } catch (err) {
+             console.error("Error al remover jugador en disconnect:", err);
+           }
+         }
+       });
 
 
       socket.on("updateRoom", async (roomId: string, payload: any) => {
