@@ -37,14 +37,16 @@ async function startServer() {
 
   // 1️⃣ CORS para endpoints normales (Fastify)
   await fastify.register(fastifyCors, {
-    origin: originValidator,
+    // casteo a any para evitar conflictos de firma entre versiones de tipos
+    origin: originValidator as any,
     credentials: true,
   });
 
   // 2️⃣ Socket.IO con CORS explícito
   await fastify.register(fastifySocketIO, {
     cors: {
-      origin: (origin: string, cb: any) => originValidator(origin, cb),
+      // casteo a any para evitar conflicto de tipos con la firma esperada por socket.io/factory
+      origin: originValidator as any,
       methods: ["GET", "POST"],
       credentials: true,
     },
