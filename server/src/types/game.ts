@@ -1,8 +1,10 @@
 export interface Player {
   name: string;
-  isOnline: boolean;
-  board: any[];
-  markedIndices: number[];
+  // presencia / cliente
+  isOnline?: boolean;
+  lastSeen?: number;
+  // índices marcados en el tablero
+  markedIndices?: number[];
 }
 
 export interface GameState {

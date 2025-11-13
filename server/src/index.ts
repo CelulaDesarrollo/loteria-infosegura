@@ -74,8 +74,12 @@ async function startServer() {
           }
         }
       } catch (e) {
-        fastify.log.error("Error en cleanupStalePlayers:", e);
+        fastify.log.error("Error en cleanupStalePlayers: " + (e instanceof Error ? e.message : String(e)));
       }
+    }, CLEANUP_INTERVAL);
+  } catch (e) {
+    fastify.log.error("Error en cleanupStalePlayers: " + (e instanceof Error ? e.message : String(e)));
+  }
     }, CLEANUP_INTERVAL);
 
     io.on("connection", (socket) => {
