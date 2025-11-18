@@ -1,16 +1,47 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Panel de Administración de Salas</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        .room-item { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
-        .player-list { margin-top: 5px; margin-left: 20px; }
-        .delete-btn { color: white; background-color: #f44336; border: none; padding: 5px 10px; cursor: pointer; float: right; margin-left: 10px; }
-        .kick-btn { color: white; background-color: #333; border: none; padding: 5px 10px; cursor: pointer; float: right; }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .room-item {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .player-list {
+            margin-top: 5px;
+            margin-left: 20px;
+        }
+
+        .delete-btn {
+            color: white;
+            background-color: #f44336;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            float: right;
+            margin-left: 10px;
+        }
+
+        .kick-btn {
+            color: white;
+            background-color: #333;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            float: right;
+        }
     </style>
 </head>
+
 <body>
     <h1>Lotería - Gestión de Salas</h1>
     <p>Token de Administrador: <code id="admin-token">admin_token_loteria</code></p>
@@ -21,8 +52,8 @@
 
     <script>
         const API_URL = "https://loteria-infosegura-server.onrender.com/admin";
-        const ADMIN_TOKEN = "admin_token_loteria"; 
-        
+        const ADMIN_TOKEN = "admin_token_loteria";
+
         document.getElementById('admin-token').textContent = ADMIN_TOKEN;
 
         async function fetchRooms() {
@@ -71,7 +102,7 @@
                 let roomTitle = `<h3>Sala: ${room.id} (${Object.keys(room.players || {}).length} Jugadores)</h3>`;
                 roomTitle += `<button class="delete-btn" onclick="deleteRoom('${room.id}')">Eliminar Sala</button>`;
                 roomDiv.innerHTML += roomTitle;
-                
+
                 // Detalles del juego
                 const gameState = room.gameState;
                 if (gameState) {
@@ -86,7 +117,7 @@
                 Object.keys(players).forEach(playerName => {
                     const player = players[playerName];
                     const playerStatus = player.isOnline ? '🟢 Online' : (player.lastSeen && (Date.now() - player.lastSeen) < 30000 ? '🟡 Reciente' : '🔴 Offline');
-                    
+
                     let playerHtml = `<p>
                         Jugador: <b>${playerName}</b> (Status: ${playerStatus}, Cartas Marcadas: ${player.markedIndices ? player.markedIndices.length : 0}) 
                         <button class="kick-btn" onclick="deletePlayer('${room.id}', '${playerName}')">KICK/Eliminar</button>
@@ -121,7 +152,7 @@
                 statusDiv.textContent = `Error de red al eliminar jugador: ${error.message}`;
             }
         }
-        
+
         async function deleteRoom(roomId) {
             if (!confirm(`🚨 ¡ADVERTENCIA! ¿Seguro que quieres eliminar la SALA COMPLETA ${roomId}? Esto detendrá el juego y desconectará a todos.`)) return;
 
@@ -147,4 +178,5 @@
         }
     </script>
 </body>
+
 </html>

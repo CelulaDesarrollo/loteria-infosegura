@@ -14,13 +14,15 @@ async function startServer() {
   // Construir orígenes permitidos según entorno (agrega aquí tus URLs de cliente)
   const PROD_CLIENT = process.env.CLIENT_URL_PROD || "https://loteria-infosegura-d9v8.vercel.app";
   const DEV_CLIENT = process.env.CLIENT_URL_DEV || "http://localhost:9002";
+  // URL adicional para administración
+  const ADMIN_CLIENT = "https://loteria-infosegura-servidor.vercel.app";
   const EXTRA_DEV = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:9002",
   ];
 
-  const allowedOrigins = new Set<string>([PROD_CLIENT, DEV_CLIENT, ...EXTRA_DEV]);
+  const allowedOrigins = new Set<string>([PROD_CLIENT, DEV_CLIENT, ADMIN_CLIENT, ...EXTRA_DEV]);
   const isDev = process.env.NODE_ENV !== "production";
 
   // Función de PreHandler de Autenticación

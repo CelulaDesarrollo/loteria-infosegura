@@ -495,7 +495,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     <>
       <ResponsiveScale minWidth={1400} maxScale={1.45}>
         {/* Grid principal: cambia de 1 columna en móvil a 12 columnas en escritorio */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 w-full">
 
           {/* PLAYER LIST - izquierda */}
           <div className="flex justify-center col-span-1 md:col-span-3 gap-3">
@@ -654,7 +654,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
 
           {/* TABLERO + BOTÓN - derecha (reemplaza la sección anterior del tablero y el botón flotante) */}
-          <div className="flex justify-center col-span-1 md:col-span-4">
+          <div className="flex justify-center col-span-1 md:col-span-4 gap-3">
             <div className="relative">
               {/* Contenedor responsivo del tablero.
                   En pantallas md+ añadimos padding-bottom para reservar espacio
@@ -684,7 +684,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
               </div>
 
               {/* Botón debajo del tablero en móvil (1 columna) */}
-              <div className="mt-4 md:hidden flex justify-center">
+              <div className="mt-3 md:hidden flex justify-center">
                 <Button
                   size="sm"
                   className="bg-[#D4165C] text-white hover:bg-[#AA124A] border-2 border-primary"
