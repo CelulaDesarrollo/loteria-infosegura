@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Administración de Salas</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .room-item { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .player-list { margin-top: 5px; margin-left: 20px; }
+        .delete-btn { color: white; background-color: #f44336; border: none; padding: 5px 10px; cursor: pointer; float: right; margin-left: 10px; }
+        .kick-btn { color: white; background-color: #333; border: none; padding: 5px 10px; cursor: pointer; float: right; }
+    </style>
+</head>
+<body>
+    <h1>Lotería - Gestión de Salas</h1>
+    <p>Token de Administrador: <code id="admin-token">admin_token_loteria</code></p>
+    <button onclick="fetchRooms()">Cargar Salas</button>
+    <hr>
+    <div id="status-message" style="color: red;"></div>
+    <div id="rooms-container"></div>
+
+    <script>
+        // *** CONFIGURACIÓN - ¡ACTUALIZA EL VALOR DEL TOKEN AQUÍ! ***
+        const API_URL = "https://loteria-infosegura-server.onrender.com/admin";
+        const ADMIN_TOKEN = "PEGA_AQUÍ_EL_VALOR_SECRETO_DE_RENDER"; 
+        
+        document.getElementById('admin-token').textContent = ADMIN_TOKEN;
+
+        async function fetchRooms() {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = 'Cargando...';
+
+            try {
+                const response = await fetch(`${API_URL}/rooms`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Admin-Token': ADMIN_TOKEN,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    statusDiv.textContent = `Error ${response.status}: ${errorData.message || 'Error al obtener salas'}`;
+                    return;
+                }
+
+                const data = await response.json();
+                statusDiv.textContent = `Salas cargadas. Total: ${data.count}`;
+                renderRooms(data.rooms);
+
+            } catch (error) {
+                statusDiv.textContent = `Error de red: ${error.message}`;
+                console.error('Fetch error:', error);
+            }
+        }
+
+        function renderRooms(rooms) {
+            const container = document.getElementById('rooms-container');
+            container.innerHTML = '';
+
+            if (rooms.length === 0) {
+                container.innerHTML = '<p>No hay salas activas.</p>';
+                return;
+            }
+
+            rooms.forEach(room => {
+                const roomDiv = document.createElement('div');
+                roomDiv.className = 'room-item';
+
+                // Título de la sala con acción de eliminar
+                let roomTitle = `<h3>Sala: ${room.id} (${Object.keys(room.players || {}).length} Jugadores)</h3>`;
+                roomTitle += `<button class="delete-btn" onclick="deleteRoom('${room.id}')">Eliminar Sala</button>`;
+                roomDiv.innerHTML += roomTitle;
+                
+                // Detalles del juego
+                const gameState = room.gameState;
+                if (gameState) {
+                    roomDiv.innerHTML += `<p>Host: <b>${gameState.host}</b> | Modo: ${gameState.gameMode || 'N/A'} | Activo: ${gameState.isGameActive ? '🟢 SÍ' : '🔴 NO'} | Cartas Llamadas: ${gameState.calledCardIds ? gameState.calledCardIds.length : 0}</p>`;
+                }
+
+                // Lista de jugadores
+                const playerListDiv = document.createElement('div');
+                playerListDiv.className = 'player-list';
+
+                const players = room.players || {};
+                Object.keys(players).forEach(playerName => {
+                    const player = players[playerName];
+                    const playerStatus = player.isOnline ? '🟢 Online' : (player.lastSeen && (Date.now() - player.lastSeen) < 30000 ? '🟡 Reciente' : '🔴 Offline');
+                    
+                    let playerHtml = `<p>
+                        Jugador: <b>${playerName}</b> (Status: ${playerStatus}, Cartas Marcadas: ${player.markedIndices ? player.markedIndices.length : 0}) 
+                        <button class="kick-btn" onclick="deletePlayer('${room.id}', '${playerName}')">KICK/Eliminar</button>
+                    </p>`;
+                    playerListDiv.innerHTML += playerHtml;
+                });
+                roomDiv.appendChild(playerListDiv);
+                container.appendChild(roomDiv);
+            });
+        }
+
+        async function deletePlayer(roomId, playerName) {
+            if (!confirm(`¿Seguro que quieres eliminar a ${playerName} de la sala ${roomId}?`)) return;
+
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = `Eliminando a ${playerName}...`;
+
+            try {
+                const response = await fetch(`${API_URL}/rooms/${roomId}/players/${playerName}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Admin-Token': ADMIN_TOKEN }
+                });
+
+                if (response.ok) {
+                    statusDiv.textContent = `✅ Jugador ${playerName} eliminado. Recargando...`;
+                    await fetchRooms();
+                } else {
+                    const errorData = await response.json();
+                    statusDiv.textContent = `Error al eliminar jugador: ${errorData.message}`;
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error de red al eliminar jugador: ${error.message}`;
+            }
+        }
+        
+        async function deleteRoom(roomId) {
+            if (!confirm(`🚨 ¡ADVERTENCIA! ¿Seguro que quieres eliminar la SALA COMPLETA ${roomId}? Esto detendrá el juego y desconectará a todos.`)) return;
+
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = `Eliminando sala ${roomId}...`;
+
+            try {
+                const response = await fetch(`${API_URL}/rooms/${roomId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Admin-Token': ADMIN_TOKEN }
+                });
+
+                if (response.ok) {
+                    statusDiv.textContent = `✅ Sala ${roomId} eliminada. Recargando...`;
+                    await fetchRooms();
+                } else {
+                    const errorData = await response.json();
+                    statusDiv.textContent = `Error al eliminar sala: ${errorData.message}`;
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error de red al eliminar sala: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

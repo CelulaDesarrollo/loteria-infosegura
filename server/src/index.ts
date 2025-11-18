@@ -9,7 +9,7 @@ async function startServer() {
   const fastify = Fastify({ logger: true });
 
   // Token de admin
-  const ADMIN_TOKEN = "admin_token_loteria"; // cambia en prod
+  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "admin_token_loteria"; // cambia en prod
 
   // Construir orígenes permitidos según entorno (agrega aquí tus URLs de cliente)
   const PROD_CLIENT = process.env.CLIENT_URL_PROD || "https://loteria-infosegura-d9v8.vercel.app";
