@@ -40,7 +40,7 @@ export function WinnerModal({ open, onRestart, ranking, gameMode, currentPlayer,
           min-h-[340px]
         "
         style={{
-          backgroundImage: "url('/LoteriaContenedorMovil.png')",
+          backgroundImage: "url('/LoteriaGanadorModal.png')",
           backgroundPosition: "center",
         }}
       >
