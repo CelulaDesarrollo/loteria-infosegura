@@ -21,10 +21,10 @@ interface WinnerModalProps {
 }
 
 export function WinnerModal({ open, onRestart, ranking, gameMode, currentPlayer, winnerName }: WinnerModalProps) {
-  // Se mantiene 'mostrarCartas' pero la lógica de renderizado se ignora
-  // const mostrarCartas = !gameMode || gameMode === "full"; // Lógica anterior
-
   const esGanador = winnerName && winnerName === currentPlayer;
+
+  // Asegurarnos de tener un array válido para renderizar
+  const safeRanking = Array.isArray(ranking) ? ranking : [];
 
   return (
     <AlertDialog open={open}>
@@ -40,7 +40,7 @@ export function WinnerModal({ open, onRestart, ranking, gameMode, currentPlayer,
           min-h-[340px]
         "
         style={{
-          backgroundImage: "url('/loteriaGanador2.png')",
+          backgroundImage: "url('/LoteriaContenedorMovil.png')",
           backgroundPosition: "center",
         }}
       >
@@ -66,7 +66,7 @@ export function WinnerModal({ open, onRestart, ranking, gameMode, currentPlayer,
                 >
 
                   <ol className="space-y-1">
-                    {ranking.slice(0, 3).map((p, idx) => (
+                    {safeRanking.slice(0, 3).map((p, idx) => (
                       <li key={p.name} className="font-bold text-[clamp(1rem,2vw,1.3rem)] text-[#165c5d]">
                         {idx === 0 && "🥇"}
                         {idx === 1 && "🥈"}

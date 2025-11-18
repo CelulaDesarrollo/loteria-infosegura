@@ -1,8 +1,8 @@
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 
-const BACKEND = "https://loteria-infosegura-server.onrender.com";
-// const BACKEND = "https://loteria-infosegura-production.up.railway.app";
+const BACKEND = "https://loteria-infosegura-server.onrender.com"; // link para render
+// const BACKEND = "https://loteria-infosegura-production.up.railway.app"; // link para railway ()
 
 interface PlayerData {
     name: string;
