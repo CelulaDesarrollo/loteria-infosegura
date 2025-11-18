@@ -33,6 +33,12 @@ async function startServer() {
     done();
   };
 
+  // Helper para manejar errores de tipo 'unknown'
+  const errorToString = (e: unknown): string => {
+    if (e instanceof Error) return e.message;
+    return String(e);
+  };
+
   // [D] Delete Single Room (Nuevo: Eliminar Sala Completa)
   fastify.route({
     method: 'DELETE',
@@ -52,8 +58,8 @@ async function startServer() {
 
         return reply.send({ success: true, message: `Sala ${roomId} y su bucle de juego eliminados.` });
       } catch (e) {
-        fastify.log.error(`Error al eliminar sala ${roomId}:`, e);
-        return reply.code(500).send({ success: false, error: String(e) });
+        fastify.log.error({ err: e }, `Error al eliminar sala ${roomId}`);
+        return reply.code(500).send({ success: false, error: errorToString(e) });
       }
     }
   });
@@ -68,7 +74,7 @@ async function startServer() {
         await RoomService.clearAllPlayers(); // Asumiendo que esta función notifica al cliente si es necesario
         return reply.send({ success: true, message: 'Todos los jugadores históricos han sido eliminados de todas las salas.' });
       } catch (e) {
-        fastify.log.error('Error en /admin/players/clear-all:', e);
+        fastify.log.error({ err: e }, 'Error en /admin/players/clear-all');
         return reply.code(500).send({ success: false, error: 'Internal Server Error' });
       }
     }
@@ -130,8 +136,8 @@ async function startServer() {
 
         return reply.send({ success: true, message: `Jugador ${playerName} eliminado de la sala ${roomId}.` });
       } catch (e) {
-        fastify.log.error(`Error al eliminar jugador ${playerName} de ${roomId}:`, e);
-        return reply.code(500).send({ success: false, error: String(e) });
+        fastify.log.error({ err: e }, `Error al eliminar jugador ${playerName} de ${roomId}`);
+        return reply.code(500).send({ success: false, error: errorToString(e) });
       }
     }
   });
@@ -177,10 +183,10 @@ async function startServer() {
     if (err) throw err;
     const io = fastify.io as Server;
     // Tarea periódica para limpiar players inactivos y notificar cambios
-    const CLEANUP_INTERVAL = 30_000; // cada 30s
+    const CLEANUP_INTERVAL = 20_000; // cada 20s
     setInterval(async () => {
       try {
-        const changes = await RoomService.cleanupStalePlayers(10_000); // timeout 90s
+        const changes = await RoomService.cleanupStalePlayers(5_000); // timeout 5s
         for (const ch of changes) {
           if (!ch.room) {
             // sala eliminada
@@ -191,7 +197,7 @@ async function startServer() {
           }
         }
       } catch (e) {
-        fastify.log.error("Error en cleanupStalePlayers: " + (e instanceof Error ? e.message : String(e)));
+        fastify.log.error({ err: e }, "Error en cleanupStalePlayers");
       }
     }, CLEANUP_INTERVAL);
 
