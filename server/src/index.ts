@@ -8,6 +8,9 @@ import { Player } from "./types/game";
 async function startServer() {
   const fastify = Fastify({ logger: true });
 
+  // Token de admin
+  const ADMIN_TOKEN = "admin_token_loteria"; // cambia en prod
+
   // Construir orígenes permitidos según entorno (agrega aquí tus URLs de cliente)
   const PROD_CLIENT = process.env.CLIENT_URL_PROD || "https://loteria-infosegura-d9v8.vercel.app";
   const DEV_CLIENT = process.env.CLIENT_URL_DEV || "http://localhost:9002";
@@ -19,7 +22,120 @@ async function startServer() {
 
   const allowedOrigins = new Set<string>([PROD_CLIENT, DEV_CLIENT, ...EXTRA_DEV]);
   const isDev = process.env.NODE_ENV !== "production";
-  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "changeme_admin_token"; // cambia en prod
+
+  // Función de PreHandler de Autenticación
+  const authenticateAdmin = (req: any, reply: any, done: () => void) => {
+    const token = (req.headers['x-admin-token'] as string) || '';
+    if (token !== ADMIN_TOKEN) {
+      console.warn(`[Admin] Intento de acceso denegado. Token: ${token}`);
+      return reply.code(401).send({ error: 'unauthorized', message: 'Invalid X-Admin-Token' });
+    }
+    done();
+  };
+
+  // [D] Delete Single Room (Nuevo: Eliminar Sala Completa)
+  fastify.route({
+    method: 'DELETE',
+    url: '/admin/rooms/:roomId',
+    preHandler: [authenticateAdmin],
+    handler: async (req, reply) => {
+      const { roomId } = req.params as any;
+      try {
+        await RoomService.deleteRoom(roomId);
+
+        // Detener bucle de juego y notificar clientes
+        RoomService.stopCallingCards(roomId);
+        const io = fastify.io as Server | undefined;
+        if (io) {
+          io.to(roomId).emit("roomDeleted", { roomId });
+        }
+
+        return reply.send({ success: true, message: `Sala ${roomId} y su bucle de juego eliminados.` });
+      } catch (e) {
+        fastify.log.error(`Error al eliminar sala ${roomId}:`, e);
+        return reply.code(500).send({ success: false, error: String(e) });
+      }
+    }
+  });
+
+  // [D] Delete All Players (Nuevo: Limpieza masiva)
+  fastify.route({
+    method: 'DELETE',
+    url: '/admin/players/clear-all',
+    preHandler: [authenticateAdmin],
+    handler: async (req, reply) => {
+      try {
+        await RoomService.clearAllPlayers(); // Asumiendo que esta función notifica al cliente si es necesario
+        return reply.send({ success: true, message: 'Todos los jugadores históricos han sido eliminados de todas las salas.' });
+      } catch (e) {
+        fastify.log.error('Error en /admin/players/clear-all:', e);
+        return reply.code(500).send({ success: false, error: 'Internal Server Error' });
+      }
+    }
+  });
+
+  // --- RUTAS ADMIN (protegidas por header x-admin-token) ---
+
+  // [R] Read All Rooms
+  fastify.route({
+    method: 'GET',
+    url: '/admin/rooms',
+    preHandler: [authenticateAdmin],
+    handler: async (req, reply) => {
+      const list = await RoomService.listRooms();
+      return reply.send({ success: true, count: list.length, rooms: list });
+    }
+  });
+
+  // [R] Read Single Room
+  fastify.route({
+    method: 'GET',
+    url: '/admin/rooms/:roomId',
+    preHandler: [authenticateAdmin],
+    handler: async (req, reply) => {
+      const { roomId } = req.params as any;
+      const room = await RoomService.getRoom(roomId);
+      if (!room) return reply.code(404).send({ success: false, message: `Sala ${roomId} no encontrada.` });
+      return reply.send({ success: true, id: roomId, room });
+    }
+  });
+
+  // [D] Delete Single Player (Ahora con DELETE y mejor lógica)
+  fastify.route({
+    method: 'DELETE',
+    url: '/admin/rooms/:roomId/players/:playerName',
+    preHandler: [authenticateAdmin],
+    handler: async (req, reply) => {
+      const { roomId, playerName } = req.params as any;
+      try {
+        await RoomService.removePlayer(roomId, playerName);
+
+        // Notificar por socket si está disponible
+        const io = fastify.io as Server | undefined;
+        const updated = await RoomService.getRoom(roomId);
+
+        if (io) {
+          // Notificar al cliente que el jugador se fue/fue eliminado
+          io.to(roomId).emit('playerLeft', { playerName });
+          io.to(roomId).emit('roomUpdated', updated);
+          if (updated?.gameState) io.to(roomId).emit('gameUpdated', updated.gameState);
+
+          // Desconectar sockets asociados a ese jugador/sala
+          io.sockets.sockets.forEach((s: any) => {
+            if (s.data?.roomId === roomId && s.data?.playerName === playerName) {
+              try { s.disconnect(true); } catch (_) { /* noop */ }
+            }
+          });
+        }
+
+        return reply.send({ success: true, message: `Jugador ${playerName} eliminado de la sala ${roomId}.` });
+      } catch (e) {
+        fastify.log.error(`Error al eliminar jugador ${playerName} de ${roomId}:`, e);
+        return reply.code(500).send({ success: false, error: String(e) });
+      }
+    }
+  });
+
 
   // Helper para validar origin in runtime (puedes loguear para depuración)
   const originValidator = (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
@@ -35,60 +151,6 @@ async function startServer() {
 
   // Para referencia/depuración imprime lista de orígenes permitidos
   console.log("CORS allowed origins:", Array.from(allowedOrigins));
-
-  // --- RUTAS ADMIN (protegidas por header x-admin-token) ---
-  fastify.route({
-    method: 'GET',
-    url: '/admin/rooms',
-    handler: async (req, reply) => {
-      const token = (req.headers['x-admin-token'] as string) || '';
-      if (token !== ADMIN_TOKEN) return reply.code(401).send({ error: 'unauthorized' });
-      const list = await RoomService.listRooms();
-      return reply.send(list);
-    }
-  });
-  
-  fastify.route({
-    method: 'GET',
-    url: '/admin/rooms/:roomId',
-    handler: async (req, reply) => {
-      const token = (req.headers['x-admin-token'] as string) || '';
-      if (token !== ADMIN_TOKEN) return reply.code(401).send({ error: 'unauthorized' });
-      const { roomId } = req.params as any;
-      const room = await RoomService.getRoom(roomId);
-      return reply.send({ id: roomId, room });
-    }
-  });
-  
-  fastify.route({
-    method: 'POST',
-    url: '/admin/rooms/:roomId/players/:playerName/remove',
-    handler: async (req, reply) => {
-      const token = (req.headers['x-admin-token'] as string) || '';
-      if (token !== ADMIN_TOKEN) return reply.code(401).send({ error: 'unauthorized' });
-      const { roomId, playerName } = req.params as any;
-      try {
-        await RoomService.removePlayer(roomId, playerName);
-        // notificar por socket si está disponible
-        const io = fastify.io as Server | undefined;
-        const updated = await RoomService.getRoom(roomId);
-        if (io) {
-          io.to(roomId).emit('playerLeft', { playerName });
-          io.to(roomId).emit('roomUpdated', updated);
-          if (updated?.gameState) io.to(roomId).emit('gameUpdated', updated.gameState);
-          // desconectar sockets que tuvieran ese playerName dentro de esa room
-          io.sockets.sockets.forEach((s: any) => {
-            if (s.data?.roomId === roomId && s.data?.playerName === playerName) {
-              try { s.disconnect(true); } catch (_) { /* noop */ }
-            }
-          });
-        }
-        return reply.send({ ok: true });
-      } catch (e) {
-        return reply.code(500).send({ error: String(e) });
-      }
-    }
-  });
 
   // 1️⃣ CORS para endpoints normales (Fastify)
   await fastify.register(fastifyCors, {
@@ -131,7 +193,7 @@ async function startServer() {
       } catch (e) {
         fastify.log.error("Error en cleanupStalePlayers: " + (e instanceof Error ? e.message : String(e)));
       }
-    }, CLEANUP_INTERVAL);     
+    }, CLEANUP_INTERVAL);
 
     io.on("connection", (socket) => {
       console.log("Cliente conectado:", socket.id);
@@ -219,23 +281,23 @@ async function startServer() {
               // Si no hay juego activo, marcar offline para cleanup eventual
               await RoomService.markPlayerOffline(roomId, playerName);
             }
-             // obtener sala actualizada y emitir (si sigue existiendo)
-             const updated = await RoomService.getRoom(roomId);
-             if (!updated || Object.keys(updated.players || {}).length === 0) {
-               // si ya no hay players, deleteRoom se encargará en cleanup; opcionalmente borrar ahora
-               await RoomService.deleteRoom?.(roomId);
-               return;
-             }
+            // obtener sala actualizada y emitir (si sigue existiendo)
+            const updated = await RoomService.getRoom(roomId);
+            if (!updated || Object.keys(updated.players || {}).length === 0) {
+              // si ya no hay players, deleteRoom se encargará en cleanup; opcionalmente borrar ahora
+              await RoomService.deleteRoom?.(roomId);
+              return;
+            }
 
-             io.to(roomId).emit("playerLeft", { playerName });
-             io.to(roomId).emit("roomUpdated", updated);
-             if (updated?.gameState) io.to(roomId).emit("gameUpdated", updated.gameState);
+            io.to(roomId).emit("playerLeft", { playerName });
+            io.to(roomId).emit("roomUpdated", updated);
+            if (updated?.gameState) io.to(roomId).emit("gameUpdated", updated.gameState);
 
-           } catch (err) {
-             console.error("Error al remover jugador en disconnect:", err);
-           }
-         }
-       });
+          } catch (err) {
+            console.error("Error al remover jugador en disconnect:", err);
+          }
+        }
+      });
 
 
       socket.on("updateRoom", async (roomId: string, payload: any) => {
@@ -443,3 +505,5 @@ const calculateFinalRanking = (players: any) => {
     }))
     .sort((a, b) => b.seleccionadas - a.seleccionadas);
 };
+
+
