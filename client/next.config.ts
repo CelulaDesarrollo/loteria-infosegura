@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    // ESTA ES LA SOLUCIÓN CLAVE PARA EL EXPORT ESTÁTICO EN IIS
+    unoptimized: true, 
+    
     remotePatterns: [
       {
         protocol: 'https',
