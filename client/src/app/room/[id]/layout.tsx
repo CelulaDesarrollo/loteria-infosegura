@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 
-// 🚨 La función generateStaticParams va AQUÍ, en el archivo de servidor.
+// La función generateStaticParams sigue aquí (es Server)
 export async function generateStaticParams() {
-  // Generamos la única sala que necesitamos para la URL estática
   return [
     { id: 'main_loteria' },
   ];
@@ -14,8 +13,11 @@ interface LayoutProps {
 
 // Este Layout es un componente de Servidor por defecto.
 export default function RoomLayout({ children }: LayoutProps) {
-  // Simplemente renderiza el componente de página que está dentro
   return (
-    <>{children}</>
+    // 🚨 Agregamos <Suspense> para manejar el useSearchParams() de RoomPage
+    // Este fallback solo aparecerá durante la precarga estática
+    <Suspense fallback={<div>Cargando juego...</div>}>
+      {children}
+    </Suspense>
   );
 }
