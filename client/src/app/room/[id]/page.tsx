@@ -6,13 +6,6 @@ import { Header } from "@/components/Header";
 import { LoteriaGame } from "@/components/game/LoteriaGame";
 import { gameSocket } from "@/lib/gameSocket";
 
-// Le dice a Next.js que genere el archivo HTML para la sala "main_loteria".
-export async function generateStaticParams() {
-  return [
-    { id: 'main_loteria' },
-  ];
-}
-
 export default function RoomPage() {
     const searchParams = useSearchParams();
     const params = useParams();
