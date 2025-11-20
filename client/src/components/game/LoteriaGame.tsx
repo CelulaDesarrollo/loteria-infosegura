@@ -495,7 +495,10 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     <>
       <ResponsiveScale minWidth={1400} maxScale={1.45}>
         {/* Grid principal: cambia de 1 columna en móvil a 12 columnas en escritorio */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 w-full">
+        {/* gap-x mantiene separación horizontal en desktop; gap-y homologa separación vertical en móvil */}
+        {/* auto-rows-min hace que cada fila tome solo el alto de su contenido.
+            items-start asegura que los hijos comiencen arriba y gap-y sea consistente. */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-x-6 gap-y-4 md:gap-6 auto-rows-min items-start w-full">
 
           {/* PLAYER LIST - izquierda */}
           <div className="flex justify-center col-span-1 md:col-span-3 gap-3">
@@ -631,7 +634,8 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
           </div>
 
           {/* COLUMNA CENTRAL: historial + carta actual */}
-          <div className="flex flex-col items-center gap-6 col-span-1 md:col-span-5">
+          {/* Historial + carta actual: usar gap-4 en móvil para igualar gap-y del grid */}
+          <div className="flex flex-col items-center gap-4 col-span-1 md:col-span-5">
             {/* Contenedor con ancho responsivo compartido */}
             <div className="w-[clamp(180px,17vw,250px)] md:w-[clamp(140px,18vw,250px)]">
               {/* HISTORIAL (solo 3 cartas recientes) */}
@@ -642,7 +646,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                 showHistory={true}
               />
             </div>
-            <div className="w-[clamp(180px,17vw,250px)] md:w-[clamp(140px,18vw,250px)] aspect-[3/4]">
+            <div className="w-[clamp(160px,17vw,250px)] md:w-[clamp(140px,18vw,250px)] aspect-[3/4]">
               {/* CARTA ACTUAL */}
               <DealerDisplay
                 currentCard={currentCard}
@@ -654,48 +658,51 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
 
 
           {/* TABLERO + BOTÓN - derecha (reemplaza la sección anterior del tablero y el botón flotante) */}
-          <div className="flex justify-center col-span-1 md:col-span-4 gap-3">
-            <div className="relative">
-              {/* Contenedor responsivo del tablero.
-                  En pantallas md+ añadimos padding-bottom para reservar espacio
-                  y que el botón pueda situarse "debajo" del tablero dentro del recuadro. */}
-              <div className="md:pb-12">
-                <div className="mx-auto w-[clamp(300px,92vw,560px)] md:w-[clamp(220px,28vw,400px)] aspect-[265/380]">
-                  <GameBoard
-                    board={player.board}
-                    onCardClick={handleCardClick}
-                    markedIndices={player.markedIndices}
-                    calledCardIds={Array.isArray(gameState.calledCardIds) ? gameState.calledCardIds : []}
-                    isAllowed={isAllowed}
-                  />
-                </div>
-              </div>
+          {/* -mt-3 en móvil reduce el espacio vertical entre la carta actual (col central) y el tablero */}
+          {/* Tablero: quitar margen negativo, dejar el grid gap-y controlar el espaciado */}
+          {/* asegurar que no haya margen superior que rompa el gap en móvil */}
+          <div className="flex justify-center col-span-1 md:col-span-4 gap-3 mt-0 md:mt-0">
+             <div className="relative">
+               {/* Contenedor responsivo del tablero.
+                   En pantallas md+ añadimos padding-bottom para reservar espacio
+                   y que el botón pueda situarse "debajo" del tablero dentro del recuadro. */}
+               <div className="md:pb-12">
+                 <div className="mx-auto w-[clamp(300px,92vw,560px)] md:w-[clamp(220px,28vw,400px)] aspect-[265/380]">
+                   <GameBoard
+                     board={player.board}
+                     onCardClick={handleCardClick}
+                     markedIndices={player.markedIndices}
+                     calledCardIds={Array.isArray(gameState.calledCardIds) ? gameState.calledCardIds : []}
+                     isAllowed={isAllowed}
+                   />
+                 </div>
+               </div>
 
-              {/* Botón dentro del recuadro: en md+ se posiciona absolute bottom-right (dentro del padding que añadimos) */}
-              <div className="hidden md:flex absolute right-0 bottom-[-2px] z-20">
-                <Button
-                  size="icon"
-                  className="bg-[#D4165C] text-white hover:bg-[#AA124A] border-2 border-primary"
-                  onClick={() => setShowExitModal(true)}
-                  aria-label="Salir de la sala"
-                >
-                  <LogOut />
-                </Button>
-              </div>
+               {/* Botón dentro del recuadro: en md+ se posiciona absolute bottom-right (dentro del padding que añadimos) */}
+               <div className="hidden md:flex absolute right-0 bottom-[-2px] z-20">
+                 <Button
+                   size="icon"
+                   className="bg-[#D4165C] text-white hover:bg-[#AA124A] border-2 border-primary"
+                   onClick={() => setShowExitModal(true)}
+                   aria-label="Salir de la sala"
+                 >
+                   <LogOut />
+                 </Button>
+               </div>
 
-              {/* Botón debajo del tablero en móvil (1 columna) */}
-              <div className="mt-3 md:hidden flex justify-center">
-                <Button
-                  size="sm"
-                  className="bg-[#D4165C] text-white hover:bg-[#AA124A] border-2 border-primary"
-                  onClick={() => setShowExitModal(true)}
-                >
-                  <LogOut />
+               {/* Botón debajo del tablero en móvil (1 columna) */}
+               <div className="mt-3 md:hidden flex justify-center">
+                 <Button
+                   size="sm"
+                   className="bg-[#D4165C] text-white hover:bg-[#AA124A] border-2 border-primary"
+                   onClick={() => setShowExitModal(true)}
+                 >
+                   <LogOut />
 
-                </Button>
-              </div>
-            </div>
-          </div>
+                 </Button>
+               </div>
+             </div>
+           </div>
 
           {/* Deja modales y botones flotantes fuera del wrapper */}
           {/* Modal que indica que se debe seleccionar modo */}
