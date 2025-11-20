@@ -70,14 +70,13 @@ export function PlayerList({
         >
           {/* Contenedor con scroll */}
           <div
-            className="overflow-y-auto custom-scrollbar"
+            className="overflow-y-auto custom-scrollbar hide-scrollbar"
             style={{
               maxHeight: "6.5rem", // Ajustar este valor para controlar cuántos jugadores se ven
-              // Ejemplo:
-              // ~6.5rem ≈ 2 jugadores
-              // ~12rem ≈ 3 jugadores
-              // ~16rem ≈ 4 jugadores
-              // ~20rem ≈ 5 jugadores
+              paddingRight: "0.75rem", // evita que el contenido quede tapado por el scrollbar overlay
+              WebkitOverflowScrolling: "touch",
+              // reserva gutter cuando el navegador lo soporte
+              scrollbarGutter: "stable",
             }}
           >
             <ul className="space-y-3 py-2">
