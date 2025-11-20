@@ -41,10 +41,11 @@ export function Header() {
           rel="noopener noreferrer"
           className="
           bg-[#18529D]
-          text-white font-sans 
+          text-white 
+          font-uv
           px-[clamp(6px,1.5vw,12px)] 
           py-[clamp(2px,0.5vw,4px)]
-          text-[clamp(10px,2.5vw,14px)]
+          text-[clamp(11px,2.5vw,15px)]
           whitespace-nowrap
           transition-all duration-200
         "

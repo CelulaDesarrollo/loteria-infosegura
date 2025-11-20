@@ -156,7 +156,7 @@ export default function RoomPage() {
   if (loading || !name || !roomData || !roomData.players || !roomData.players[name]) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <p className="text-lg text-muted-foreground">Cargando sala, un momento...</p>
+        <p className="text-lg text-muted-foreground">Estás siendo redirigido, espera un momento...</p>
       </div>
     );
   }
