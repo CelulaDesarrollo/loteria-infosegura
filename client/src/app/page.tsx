@@ -17,11 +17,14 @@ import { BookOpen, Gamepad2, Loader2 } from "lucide-react";
 import { RoomFullModal } from "@/components/game/RoomFullModal";
 import { NameExistsModal } from "@/components/game/NameExistsModal";
 
-const DEFAULT_ROOM_ID = "main_loteria";
+// nuevas salas disponibles (coinciden con generateStaticParams)
+const ROOM_IDS = ["main_loteria-1", "main_loteria-2", "main_loteria-3", "main_loteria-4"];
+const DEFAULT_ROOM_ID = ROOM_IDS[0];
 const MAX_PLAYERS = 100;
 
 export default function Home() {
   const [name, setName] = useState("");
+  const [selectedRoom, setSelectedRoom] = useState<string>(DEFAULT_ROOM_ID);
   const [showRoomFullModal, setShowRoomFullModal] = useState(false);
   const [showNameExistsModal, setShowNameExistsModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,7 +40,7 @@ export default function Home() {
     }
 
     setIsLoading(true);
-    const roomId = DEFAULT_ROOM_ID;
+    const roomId = selectedRoom;
     const playerName = trimmed;
 
     const playerData = {
@@ -93,6 +96,20 @@ export default function Home() {
 
             <CardContent>
               <form onSubmit={handleJoinRoom} className="space-y-6">
+                {/* Selector de sala */}
+                <div>
+                  <label htmlFor="room" className="block text-sm font-medium text-muted-foreground mb-1">Selecciona sala</label>
+                  <select
+                    id="room"
+                    value={selectedRoom}
+                    onChange={(e) => setSelectedRoom(e.target.value)}
+                    className="w-full rounded-md border bg-input px-3 py-2"
+                  >
+                    {ROOM_IDS.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="name" className="text-base">Nombre</Label>
                   <Input
