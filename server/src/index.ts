@@ -4,6 +4,8 @@ import fastifySocketIO from "fastify-socket.io";
 import { Server } from "socket.io";
 import { RoomService } from "./services/roomService";
 import { Player } from "./types/game";
+import fastifyStatic from "@fastify/static";
+import path from "path";
 
 async function startServer() {
   const fastify = Fastify({ logger: true });
@@ -179,6 +181,26 @@ async function startServer() {
     pingInterval: 25000,
     pingTimeout: 60000,
     maxHttpBufferSize: 1e6,
+  });
+
+  // Middleware para añadir headers restrictivos a imágenes
+  fastify.register(fastifyStatic, {
+    root: path.join(__dirname, "../public"),
+    prefix: "/cards/",
+    constraints: {},
+    // headers para prevenir descarga y caché persistente
+    setHeaders: (res, path) => {
+      if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg")) {
+        // Prevenir que el navegador cache la imagen de forma persistente
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        // Indicar que no es para descargar
+        res.setHeader("Content-Disposition", "inline; filename=restricted");
+        // Prevenir acceso de terceros
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        // Desabilitar CORS si es desde origen diferente (opcional)
+        res.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "http://localhost:3000");
+      }
+    }
   });
 
   // usar IIFE async dentro del ready para poder usar await condicionalmente

@@ -28,6 +28,8 @@ export function GameCard({ card, isMarked, isClickable, onClick }: GameCardProps
         fill
         sizes="100%"
         className="object-contain transition-all duration-500"
+        draggable={false}
+        onContextMenu={(e) => e.preventDefault()}
       />
       {isMarked && (
         <div className="absolute inset-0 flex items-center justify-center">

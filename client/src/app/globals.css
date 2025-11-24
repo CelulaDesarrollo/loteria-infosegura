@@ -97,3 +97,15 @@
 
 /* Si quieres un fallback donde la scrollbar se vea semi-transparente en vez de desaparecer,
    añade una clase alternativa y aplíquela según prefieras. */
+
+/* Prevenir drag & drop de imágenes */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Desabilitar context menu (clic derecho) en imágenes */
+img {
+  -webkit-touch-callout: none;
+}
