@@ -151,6 +151,19 @@ class GameSocket {
         }
     }
 
+    updateRoom(roomId: string, payload: any) {
+      return new Promise<void>((resolve, reject) => {
+        try {
+          this.socket.emit("updateRoom", roomId, payload, (err?: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
+
     // Wrapper simple para emitir; espera conexión y resuelve inmediatamente después de emitir.
     async emit(event: string, ...args: any[]) {
         await this.ensureConnection();

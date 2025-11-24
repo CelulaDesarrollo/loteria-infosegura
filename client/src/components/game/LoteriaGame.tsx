@@ -132,85 +132,62 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   }, [roomData?.gameState?.winner]);
 
   // Marcar carta
-  const handleCardClick = async (card: CardType, index: number) => {
-    // bloquear si no hay jugador local, juego terminado o no hay cartas llamadas aún
-    if (!player || gameEnded || !roomData.gameState?.calledCardIds) return;
-    const { calledCardIds } = roomData.gameState;
-    const isCalled = calledCardIds.includes(card.id);
+  const handleCardClick = async (index: number, cardId: string) => {
+    if (!player || !gameState?.isGameActive) return;
 
-    const row = Math.floor(index / 4);
-    const col = index % 4;
+    const updatedIndices = Array.isArray(player.markedIndices)
+      ? [...player.markedIndices]
+      : [];
 
-    // Bloquear clics fuera de la restricción del modo
-    if (!isAllowed({ row, col })) return;
-
-    // Si es la primera carta y el modo no es "full", la guardamos
-    if (!firstCard && isCalled) {
-      setFirstCard({ row, col });
+    const alreadyMarked = updatedIndices.includes(index);
+    if (alreadyMarked) {
+      // Desmarcar
+      updatedIndices.splice(updatedIndices.indexOf(index), 1);
+    } else {
+      // Marcar
+      updatedIndices.push(index);
     }
 
-    if (isCalled && !player.markedIndices.includes(index)) {
-      const newMarkedIndices = [...player.markedIndices, index].sort((a, b) => a - b);
-      // actualiza solo la marca del jugador local inicialmente
-      const updatedPlayers = {
-        ...roomData.players,
-        [playerName]: { ...player, markedIndices: newMarkedIndices }
-      };
-
-      let winner = roomData.gameState.winner;
-      let isGameActive = roomData.gameState.isGameActive; // valor inicial = true
-      if (checkWin(newMarkedIndices, player.board, calledCardIds, roomData.gameState.gameMode)) {
-        winner = playerName;
-        isGameActive = false; // valor cambia si gana = false
-      }
-
-      if (winner) {
-        // calcular ranking ANTES de limpiar los tableros
-        /*
-        const rankingArr = Object.values(updatedPlayers || {})
-          .map((p: any) => ({
-            name: p.name,
-            seleccionadas: Array.isArray(p.markedIndices) ? p.markedIndices.length : 0,
-          }))
-          .sort((a, b) => b.seleccionadas - a.seleccionadas);
-
-        setRanking(rankingArr);
-        */
-
-        // 1. Primero emitir el ganador con las marcas intactas (para que el servidor valide y limpie)
-        await gameSocket.emit("updateRoom", roomId, {
-          players: updatedPlayers,
-          gameState: {
-            ...roomData.gameState,
-            winner,
-            isGameActive: false,
-            //finalRanking: rankingArr,
+    try {
+      // Actualizar localmente primero (optimistic update)
+      setRoomData((prev: any) => ({
+        ...prev,
+        players: {
+          ...(prev?.players || {}),
+          [playerName]: {
+            ...(prev?.players?.[playerName] || {}),
+            markedIndices: updatedIndices,
           },
-        });
+        },
+      }));
 
-        setRoomData((prev: any) => ({
-          ...(prev || {}),
-          players: updatedPlayers,
-          gameState: { ...(prev?.gameState || {}), winner, isGameActive: false },
-        }));
-      } else {
-        // caso normal: solo marcar al jugador y emitir
-        setRoomData((prev: any) => ({
-          ...(prev || {}),
-          players: updatedPlayers,
-          gameState: { ...(prev?.gameState || {}), winner, isGameActive: isGameActive },
-        }));
-
-        await gameSocket.emit("updateRoom", roomId, {
-          players: updatedPlayers,
-          gameState: {
-            ...roomData.gameState,
-            winner,
-            isGameActive,
-          },
-        });
+      // Emitir al servidor INMEDIATAMENTE y esperar confirmación
+      const updatePromise = gameSocket.updateRoom?.(roomId, {
+         ...roomData,
+         players: {
+           ...(roomData?.players || {}),
+           [playerName]: {
+             ...(roomData?.players?.[playerName] || {}),
+             markedIndices: updatedIndices,
+           },
+         },
+      });
+      if (updatePromise instanceof Promise) {
+        await updatePromise;
       }
-
+    } catch (err) {
+      console.error("Error al actualizar marcado:", err);
+      // Revertir si falla (rollback)
+      setRoomData((prev: any) => ({
+        ...prev,
+        players: {
+          ...(prev?.players || {}),
+          [playerName]: {
+            ...(prev?.players?.[playerName] || {}),
+            markedIndices: player.markedIndices || [],
+          },
+        },
+      }));
     }
   };
   useEffect(() => {
