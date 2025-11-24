@@ -132,7 +132,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   }, [roomData?.gameState?.winner]);
 
   // Marcar carta
-  const handleCardClick = async (index: number, cardId: string) => {
+  const handleCardClick = async (card: CardType, index: number) => {
     if (!player || !gameState?.isGameActive) return;
 
     const updatedIndices = Array.isArray(player.markedIndices)
@@ -162,7 +162,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
       }));
 
       // Emitir al servidor INMEDIATAMENTE y esperar confirmación
-      const updatePromise = gameSocket.updateRoom?.(roomId, {
+      await gameSocket.updateRoom?.(roomId, {
          ...roomData,
          players: {
            ...(roomData?.players || {}),
@@ -172,9 +172,6 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
            },
          },
       });
-      if (updatePromise instanceof Promise) {
-        await updatePromise;
-      }
     } catch (err) {
       console.error("Error al actualizar marcado:", err);
       // Revertir si falla (rollback)
@@ -512,20 +509,36 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                             updatedPlayers[pName].markedIndices = [];
                           });
 
-                          // AÑADIR EVENTO PARA DETENER BUCLE
-                          gameSocket.emit("stopGameLoop", roomId);
-
-                          await gameSocket.emit("updateRoom", roomId, {
+                          // Optimistic update: limpiar historial y carta actual en UI inmediatamente
+                          setRoomData((prev: any) => ({
+                            ...(prev || {}),
                             players: updatedPlayers,
                             gameState: {
-                              ...gameState,
+                              ...(prev?.gameState || {}),
                               isGameActive: false,
                               winner: null,
-                              calledCardIds: [],
+                              calledCardIds: [], // limpia historial y carta actual
                             },
-                          });
+                          }));
+
+                          // Avisar al servidor (no bloquear la UX si falla)
+                          try {
+                            gameSocket.emit("stopGameLoop", roomId);
+                            await gameSocket.emit("updateRoom", roomId, {
+                              players: updatedPlayers,
+                              gameState: {
+                                ...gameState,
+                                isGameActive: false,
+                                winner: null,
+                                calledCardIds: [],
+                              },
+                            });
+                          } catch (e) {
+                            console.warn("Error notifying server when ending game:", e);
+                          }
 
                           setFirstCard(null); // reinicia carta inicial
+                          setRanking([]); // limpiar ranking para que no aparezca en UI
                         }}
                         variant="destructive"
                       >

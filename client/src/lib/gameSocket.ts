@@ -151,7 +151,7 @@ class GameSocket {
         }
     }
 
-    updateRoom(roomId: string, payload: any) {
+    updateRoom(roomId: string, payload: any): Promise<void> {
       return new Promise<void>((resolve, reject) => {
         try {
           this.socket.emit("updateRoom", roomId, payload, (err?: any) => {

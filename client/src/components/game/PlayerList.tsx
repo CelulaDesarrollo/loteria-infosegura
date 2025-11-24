@@ -73,10 +73,10 @@ export function PlayerList({
             className="overflow-y-auto custom-scrollbar hide-scrollbar"
             style={{
               maxHeight: "6.5rem", // Ajustar este valor para controlar cuántos jugadores se ven
-              paddingRight: "0.75rem", // evita que el contenido quede tapado por el scrollbar overlay
+              paddingRight: "0.75rem",
               WebkitOverflowScrolling: "touch",
-              // reserva gutter cuando el navegador lo soporte
               scrollbarGutter: "stable",
+              display: isExpanded ? "block" : "none", // oculta por completo cuando está contraído
             }}
           >
             <ul className="space-y-3 py-2">

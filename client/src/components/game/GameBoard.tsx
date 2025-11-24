@@ -5,41 +5,39 @@ import { GameCard } from "./GameCard";
 
 interface GameBoardProps {
   board: CardType[];
-  onCardClick: (index: number, cardId: string) => Promise<void>;
+  onCardClick: (card: CardType, index: number) => Promise<void>;
   markedIndices: number[];
-  calledCardIds: string[];
-  isAllowed: (card: { row: number; col: number }) => boolean;
+  calledCardIds: number[];
+  isAllowed?: (position: { row: number; col: number }) => boolean;
 }
 
-export function GameBoard({
-  board,
-  onCardClick,
-  markedIndices,
-  calledCardIds,
-  isAllowed,
-}: GameBoardProps) {
+export function GameBoard({ board, onCardClick, markedIndices, calledCardIds, isAllowed }: GameBoardProps) {
   const seleccionadas = markedIndices.length;
 
   return (
-    <div className="w-full h-full">
+    <div className="grid grid-cols-4 gap-0 p-2 rounded-lg bg-secondary border-1 border-primary/20 w-full h-full">
       {board.map((card, index) => {
         const row = Math.floor(index / 4);
         const col = index % 4;
-        const isMarked = markedIndices.includes(index);
-        const isCalled = calledCardIds.includes(String(card.id));
-        const isCardAllowed = isAllowed({ row, col });
+
+        // Solo mostrar a color si es permitido por la restricción
+        const allowed = isAllowed ? isAllowed({ row, col }) : true;
 
         return (
-          <GameCard
-            key={index}
-            card={card}
-            index={index}
-            isMarked={isMarked}
-            onCardClick={(idx, cardId) => onCardClick(idx, cardId)}
-            isAllowed={isCardAllowed}
-          />
+          <div
+            key={card.id}
+            className={`w-full h-full transition-all duration-200 ${!allowed ? "grayscale opacity-50 pointer-events-none" : ""}`}
+          >
+            <GameCard
+              card={card}
+              isMarked={markedIndices.includes(index)}
+              isClickable={allowed && calledCardIds.includes(card.id) && !markedIndices.includes(index)}
+              onClick={async () => allowed && await onCardClick(card, index)}
+            />
+          </div>
         );
       })}
+
     </div>
   );
 }

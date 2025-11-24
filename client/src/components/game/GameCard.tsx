@@ -1,60 +1,53 @@
 "use client";
 
 import Image from "next/image";
-import { Card } from "@/lib/loteria";
-import { useState } from "react";
+import { Card as CardType } from "@/lib/loteria";
 
 interface GameCardProps {
-  card: Card;
-  index: number;
+  card: CardType;
   isMarked: boolean;
-  onCardClick: (index: number, cardId: string) => void;
-  isAllowed: boolean;
+  isClickable: boolean;
+  onClick: () => void;
 }
 
-export function GameCard({
-  card,
-  index,
-  isMarked,
-  onCardClick,
-  isAllowed,
-}: GameCardProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleClick = async () => {
-    if (!isAllowed || isProcessing) return;
-
-    setIsProcessing(true);
-    try {
-      // card.id puede ser string o number, normalizar a string
-      const cardId = String(card.id || index);
-      await onCardClick(index, cardId);
-    } catch (err) {
-      console.error("Error al marcar carta:", err);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
+export function GameCard({ card, isMarked, isClickable, onClick }: GameCardProps) {
   return (
     <div
-      onClick={handleClick}
-      className={`
-        relative cursor-pointer transition-all duration-200
-        ${isMarked ? "ring-4 ring-yellow-400 scale-105" : "hover:scale-102"}
-        ${!isAllowed ? "opacity-50 cursor-not-allowed" : ""}
-        ${isProcessing ? "pointer-events-none opacity-75" : ""}
-      `}
+      className="relative w-full h-full rounded-md overflow-hidden transition-all duration-300 ease-in-out transform hover:scale-105"
+      onClick={isClickable ? onClick : undefined}
+      role="button"
+      aria-label={`Marcar ${card.name}`}
+      tabIndex={isClickable ? 0 : -1}
+      onKeyDown={(e) => {
+        if (isClickable && (e.key === "Enter" || e.key === " ")) onClick();
+      }}
     >
-      <img
+      <Image
         src={card.imageUrl}
         alt={card.name}
-        className="w-full h-full object-cover rounded"
+        fill
+        sizes="100%"
+        className="object-contain transition-all duration-500"
       />
-
-      {/* Frijolito (marcador visual) */}
       {isMarked && (
-        <div className="absolute top-1 right-1 w-4 h-4 bg-yellow-400 rounded-full border-2 border-yellow-600 shadow-lg" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div
+            className="
+              rounded-full bg-[#FBEEDF]/80 flex items-center justify-center text-white font-bold
+              animate-in fade-in zoom-in
+              w-12 h-12 md:w-12 md:h-12 sm:w-12 sm:h-12 lg:w-16 lg:h-16
+              aspect-square
+            "
+          >
+            <Image
+              src="/Lotería SI-frijolito-negro64x64.png"
+              alt="Frijolito"
+              width={64}
+              height={64}
+              className="object-contain w-full h-full"
+            />
+          </div>
+        </div>
       )}
     </div>
   );

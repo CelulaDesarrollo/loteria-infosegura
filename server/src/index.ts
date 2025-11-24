@@ -333,11 +333,20 @@ async function startServer() {
 
           // Fusionar gameState si viene
           if (payload.gameState && typeof payload.gameState === "object") {
-            const { deck, calledCardIds, ...safeGameState } = payload.gameState;
+            // permitimos actualizar la mayoría de campos y también calledCardIds
+            // (el cliente puede enviar [] para limpiar historial)
+            const { deck, ...safeGameState } = payload.gameState;
             room.gameState = {
               ...(room.gameState || {}),
-              ...safeGameState // Solo fusionamos propiedades seguras
+              ...safeGameState // merge general
             };
+
+            // Si viene explicitamente calledCardIds lo aplicamos (incluso si es [])
+            if (Object.prototype.hasOwnProperty.call(payload.gameState, "calledCardIds")) {
+              room.gameState.calledCardIds = Array.isArray(payload.gameState.calledCardIds)
+                ? payload.gameState.calledCardIds
+                : [];
+            }
 
             // Si el cliente pide desactivar el juego o hay ganador, paramos el bucle.
             if (safeGameState.isGameActive === false || safeGameState.winner) {
