@@ -189,16 +189,22 @@ async function startServer() {
     prefix: "/cards/",
     constraints: {},
     // headers para prevenir descarga y caché persistente
-    setHeaders: (res, path) => {
-      if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg")) {
+    // Nota: `res` es el raw ServerResponse del http module. Tipamos como any para compilar sin cambiar behavior.
+    setHeaders: (res: any, filePath: string) => {
+      if (typeof filePath === "string" && (filePath.endsWith(".png") || filePath.endsWith(".jpg") || filePath.endsWith(".jpeg"))) {
         // Prevenir que el navegador cache la imagen de forma persistente
-        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-        // Indicar que no es para descargar
-        res.setHeader("Content-Disposition", "inline; filename=restricted");
-        // Prevenir acceso de terceros
-        res.setHeader("X-Content-Type-Options", "nosniff");
-        // Desabilitar CORS si es desde origen diferente (opcional)
-        res.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "http://localhost:3000");
+        try {
+          res.setHeader?.("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+          // Indicar que no es para descargar
+          res.setHeader?.("Content-Disposition", "inline; filename=restricted");
+          // Prevenir acceso de terceros
+          res.setHeader?.("X-Content-Type-Options", "nosniff");
+          // Controlar CORS para las imágenes (opcional)
+          res.setHeader?.("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "http://localhost:3000");
+        } catch (e) {
+          // noop: no queremos romper startup si res no soporta setHeader (compatibilidad)
+          fastify.log.debug("setHeaders error:", String(e));
+        }
       }
     }
   });
