@@ -21,10 +21,10 @@ export default function GlosaryPage() {
         <div className="text-left justify-center sm:text-left pl-4">
           <h1 className="text-[20px] font-bold flex items-center gap-2 justify-start">
             <BookOpen className="w-6 h-6" />
-            Glosario de Cartas
+            Glosario de cartas
           </h1>
           <p className="text-muted-foreground mt-2 text-[18px]">
-            Aquí encontrarás la descripción de cada carta de la lotería.
+            En esta sección podrás conocer la descripción de cada carta de la lotería.
           </p>
         </div>
 

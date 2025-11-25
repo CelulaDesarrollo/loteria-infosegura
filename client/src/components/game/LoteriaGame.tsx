@@ -494,7 +494,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                     {/* Botón para iniciar juego */}
                     <Button onClick={startGame} disabled={gameState.isGameActive || !!gameState.winner}>
                       <Play className="mr-2" />
-                      Iniciar Juego
+                      Iniciar juego
                     </Button>
 
                     {/* Botón para terminar juego activo */}
@@ -542,7 +542,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                         }}
                         variant="destructive"
                       >
-                        Terminar Juego
+                        Terminar juego
                       </Button>
                     )}
 
@@ -579,7 +579,7 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
                 {/* Botón para reiniciar la tabla del jugador actual */}
                 <Button onClick={resetPlayerBoard} variant="outline" disabled={gameState.isGameActive}>
                   <RotateCw className="mr-2" />
-                  Nueva Tabla
+                  Nueva tabla
                 </Button>
 
                 {/* Mensaje para jugadores que no son anfitrión */}

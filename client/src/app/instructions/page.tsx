@@ -5,22 +5,53 @@ import { Timer, Users, Moon, RotateCw, Volume2, Crown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 
+
 const MODOS = [
-  { key: "tradicional", title: "Tradicional", img: "/instructive/tradicional.png", text: "El primer jugador en completar toda su tabla gana." },
-  { key: "filas", title: "Filas", img: "/instructive/filas.png", text: "El primer jugador en completar una línea horizontal gana." },
-  { key: "columnas", title: "Columnas", img: "/instructive/columnas.png", text: "El primer jugador en completar una línea vertical gana." },
-  { key: "diagonales", title: "Diagonales", img: "/instructive/diagonales.png", text: "El primer jugador en completar una línea diagonal gana." },
-  { key: "esquinas", title: "Esquinas", img: "/instructive/esquinas.png", text: "El primer jugador en completar las 4 esquinas gana." },
-  { key: "cuadrado", title: "Cuadrado", img: "/instructive/cuadrado.png", text: "El primer jugador en completar el cuadrado central gana." },
+  {
+    key: "tradicional",
+    title: "Tradicional",
+    img: "/instructive/tradicional.png",
+    text: "Al ingresar a la sala, se te asignará de manera automática una tabla que puedes cambiar con el botón “Nueva tabla”.\n\nGana el primer jugador que complete todas las casillas de su tabla."
+  },
+  {
+    key: "filas",
+    title: "Filas",
+    img: "/instructive/filas.png",
+    text: "Al comenzar el juego, la fila se asignará automáticamente tomando como referencia la primera carta cantada que coincida con el cartón.\n\nEl jugador no necesita seleccionarla manualmente. Gana el primer jugador que complete una línea horizontal en su tabla."
+  },
+  {
+    key: "columnas",
+    title: "Columnas",
+    img: "/instructive/columnas.png",
+    text: "Al comenzar el juego, la columna se asignará automáticamente tomando como referencia la primera carta cantada que coincida con el cartón. El jugador no necesita seleccionarla manualmente.\n\nGana el primer jugador que complete una línea vertical en su tabla."
+  },
+  {
+    key: "diagonales",
+    title: "Diagonales",
+    img: "/instructive/diagonales.png",
+    text: "Al comenzar el juego, la diagonal se asignará automáticamente tomando como referencia la primera carta cantada que coincida con el cartón. El jugador no necesita seleccionarla manualmente.\n\nGana el primer jugador que complete una línea diagonal (de esquina a esquina) en su tabla."
+  },
+  {
+    key: "esquinas",
+    title: "Esquinas",
+    img: "/instructive/esquinas.png",
+    text: "Gana el primer jugador que marque las cuatro esquinas de su tabla."
+  },
+  {
+    key: "cuadrado",
+    title: "Cuadrado Central",
+    img: "/instructive/cuadrado.png",
+    text: "Gana el primer jugador que complete las cuatro casillas del centro de su tabla, formando un cuadrado."
+  },
 ];
 
 const GAME_RULES = [
   { title: "Tiempo entre cartas", value: "3.5 segundos", icon: Timer, text: "Cada carta se canta cada 3.5 segundos." },
-  { title: "Cantadito", value: "Paso de cartas", icon: Volume2, text: "Puedes activar el 'cantadito' para escuchar el nombre de la carta, algunas pueden tardar más según su nombre." },
+  { title: "Cantadito", value: "Paso de cartas", icon: Volume2, text: "Puedes activar el 'Cantadito' para escuchar el nombre de la carta, algunas pueden tardar más según su nombre." },
   { title: "Inactividad del jugador", value: "1.5 min + 15 seg", icon: Moon, text: "Si no hay actividad por 1 minuto y medio, recibirás una advertencia. Tendrás 15 segundos para responder antes de ser desconectado." },
   { title: "Límite de jugadores", value: "25 jugadores", icon: Users, text: "Solo pueden participar hasta 25 jugadores por sala." },
   { title: "Anfitrión", value: "1 por sala", icon: Crown, text: "El primer jugador en entrar será el anfitrión. Si se desconecta, el rol pasa al siguiente." },
-  { title: "Cambio de tabla", value: "Solo cuando el juego no está activo", icon: RotateCw, text: "Puedes generar una nueva tabla desde el botón 'Nueva Tabla', pero solo si la partida no está en curso." },
+  { title: "Cambio de tabla", value: "Solo cuando el juego no está activo", icon: RotateCw, text: "Puedes generar una nueva tabla desde el botón 'Nueva tabla', pero solo si la partida no está en curso." },
 ];
 
 export default function InstructionsPage() {
@@ -36,10 +67,10 @@ export default function InstructionsPage() {
           <div className="text-left justify-center sm:text-left pl-4">
             <h1 className="text-[20px] font-bold flex items-center gap-2 justify-start">
               <img src="/LoteriaSI-InterfazIconoInstructivo.svg" alt="Instructivo Icon" className="h-6 w-6 inline-block mr-2" />
-              Instructivo del Juego
+              Instructivo del juego
             </h1>
             <p className="text-muted-foreground mt-2 text-[18px]">
-              Aquí encontrarás los modos de juego y las instrucciones para jugar a la lotería.
+              En esta sección podrás conocer los modos de juego y las instrucciones para jugar a la lotería.
             </p>
           </div>
 
@@ -67,7 +98,7 @@ export default function InstructionsPage() {
                   <img src={m.img} alt={m.title} className="w-[100px] sm:w-[120px] md:w-[140px] h-auto rounded-md border mt-2" />
                   <div>
                     <h3 className="text-lg font-semibold text-center">{m.title}</h3>
-                    <p className="text-muted-foreground mt-2 text-[16px] leading-relaxed text-left">{m.text}</p>
+                    <p className="text-muted-foreground mt-2 text-[16px] whitespace-pre-wrap leading-relaxed text-left">{m.text}</p>
                   </div>
                 </CardContent>
               </Card>
