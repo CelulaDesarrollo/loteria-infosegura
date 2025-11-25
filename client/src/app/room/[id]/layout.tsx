@@ -2,9 +2,9 @@ import React, { Suspense } from 'react';
 
 // La función generateStaticParams sigue aquí (es Server)
 export async function generateStaticParams() {
-  return [
-    { id: 'main_loteria' },
-  ];
+  // generar estáticamente 4 salas (puedes cambiar los ids a 'sala-1' / 'sala-2' ...)
+  const ROOM_IDS = ["main_loteria-1", "main_loteria-2", "main_loteria-3", "main_loteria-4"];
+  return ROOM_IDS.map((id) => ({ id }));
 }
 
 interface LayoutProps {

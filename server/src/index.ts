@@ -248,8 +248,17 @@ async function startServer() {
       });
 
       // --- EXISTENTE: joinRoom / leaveRoom / disconnect ---
-      socket.on("joinRoom", async ({ roomId, playerName, playerData }) => {
+      socket.on("joinRoom", async ({ roomId, playerName, playerData }, callback) => {
         try {
+          // verificar capacidad por sala (25)
+          const existingRoom = await RoomService.getRoom(roomId);
+          const currentCount = existingRoom?.players ? Object.keys(existingRoom.players).length : 0;
+          const MAX_PER_ROOM = 25;
+          if (currentCount >= MAX_PER_ROOM) {
+            callback?.({ success: false, error: { code: "full", message: "sala llena" } });
+            return;
+          }
+
           console.log("Intento de unión:", { roomId, playerName });
           const result = await RoomService.addPlayer(roomId, playerName, playerData);
 
