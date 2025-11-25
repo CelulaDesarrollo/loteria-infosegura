@@ -42,6 +42,16 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   const [ranking, setRanking] = useState<{ name: string; seleccionadas: number }[]>([]);
   const [roomData, setRoomData] = useState<any>(initialRoomData);
 
+  // selectedMode debe declararse antes de usarlo (evita ReferenceError)
+  // Inicializar desde initialRoomData si ya viene del servidor
+  const [selectedMode, setSelectedMode] = useState<string>(() => {
+    try {
+      return initialRoomData?.gameState?.gameMode || "";
+    } catch {
+      return "";
+    }
+  });
+
   // Evita recomputar ranking después de limpiar markedIndices
   const lastWinnerRef = useRef<string | null>(null);
 
@@ -143,13 +153,25 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
     if (alreadyMarked) {
       // Desmarcar
       updatedIndices.splice(updatedIndices.indexOf(index), 1);
+      // Si desmarcamos la carta que fue la primera carta, limpiamos firstCard
+      if (firstCard) {
+        const firstIdx = firstCard.row * 4 + firstCard.col;
+        if (firstIdx === index) setFirstCard(null);
+      }
     } else {
       // Marcar
       updatedIndices.push(index);
     }
 
+    // Si aún no hay firstCard y el modo requiere fijar una carta inicial, setearla
+    const row = Math.floor(index / 4);
+    const col = index % 4;
+    if (!firstCard && effectiveMode && effectiveMode !== "full") {
+      setFirstCard({ row, col });
+    }
+
     try {
-      // Actualizar localmente primero (optimistic update)
+      // 1️⃣ Actualizar localmente primero (optimistic update)
       setRoomData((prev: any) => ({
         ...prev,
         players: {
@@ -161,19 +183,53 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
         },
       }));
 
-      // Emitir al servidor INMEDIATAMENTE y esperar confirmación
-      await gameSocket.updateRoom?.(roomId, {
-         ...roomData,
-         players: {
-           ...(roomData?.players || {}),
-           [playerName]: {
-             ...(roomData?.players?.[playerName] || {}),
-             markedIndices: updatedIndices,
-           },
-         },
+      // 2️⃣ Emitir al servidor SIN esperar (fire and forget para no bloquear claimWin)
+      gameSocket.updateRoom?.(roomId, {
+        players: {
+          ...(roomData?.players || {}),
+          [playerName]: {
+            ...(roomData?.players?.[playerName] || {}),
+            markedIndices: updatedIndices,
+          },
+        },
+      }).catch(e => console.warn("updateRoom error:", e));
+
+      // 3️⃣ Validar victoria INMEDIATAMENTE (sin esperar updateRoom)
+      const modeForCheck = effectiveMode || "full";
+      const firstForCheck = firstCard || (modeForCheck !== "full" ? { row, col } : null);
+
+      console.log("📤 EMITIENDO claimWin:", {
+        roomId,
+        playerName,
+        boardLength: player.board.length,
+        markedIndices: updatedIndices,
+        markedCount: updatedIndices.length,
+        gameMode: modeForCheck,
+        firstCard: firstForCheck,
+        calledCardIds: gameState.calledCardIds,
       });
+
+      try {
+        const claimResult = await gameSocket.emit(
+          "claimWin",
+          roomId,
+          playerName,
+          {
+            board: player.board,
+            markedIndices: updatedIndices,
+            gameMode: modeForCheck,
+            firstCard: firstForCheck,
+          }
+        );
+        console.log("✅ RESPUESTA claimWin:", claimResult);
+        if (claimResult?.success) {
+          console.log("🎉 VICTORIA CONFIRMADA POR SERVIDOR");
+        }
+      } catch (claimErr) {
+        console.error("❌ Error emitiendo claimWin:", claimErr);
+      }
     } catch (err) {
-      console.error("Error al actualizar marcado:", err);
+      console.error("Error en handleCardClick:", err);
       // Revertir si falla (rollback)
       setRoomData((prev: any) => ({
         ...prev,
@@ -428,42 +484,59 @@ export function LoteriaGame({ roomId, playerName, roomData: initialRoomData }: L
   // Función que determina si una carta es clickeable según el modo y la primera carta seleccionada
   const isAllowed = (card: { row: number; col: number }) => {
     const idx = card.row * 4 + card.col;
+    const mode = effectiveMode || "full";
 
-    // Diagonales: solo permite las cartas de las diagonales antes de seleccionar la primera carta
-    if (roomData?.gameState?.gameMode === "diagonal" && !firstCard) {
+    // Diagonales: antes de seleccionar primera carta sólo mostrar indices válidos
+    if (mode === "diagonal" && !firstCard) {
       const diagonalIndices = [0, 5, 10, 15, 3, 6, 9, 12];
       return diagonalIndices.includes(idx);
     }
 
-    // Esquinas: solo permite las cartas de las esquinas
-    if (roomData?.gameState?.gameMode === "corners") {
+    // Esquinas: sólo las esquinas en todo momento
+    if (mode === "corners") {
       const cornerIndices = [0, 3, 12, 15];
       return cornerIndices.includes(idx);
     }
 
-
-    // Cuadrado central: solo permite las cartas del cuadrado central
-    if (roomData?.gameState?.gameMode === "square") {
+    // Cuadrado fijo central (si se usa): sólo indices centrales
+    if (mode === "square" && !firstCard) {
       const squareIndices = [5, 6, 9, 10];
       return squareIndices.includes(idx);
     }
 
-    /*
-    // Cuadrado dinámico: usa getRestriction para cuadrado
-    if (roomData?.gameState?.gameMode === "square") {
-      const restriction = getRestriction("square", firstCard);
-      return restriction(card);
-    }
-      */
-
-    // Otros modos
+    // Si no hay firstCard y el modo permite que la primera carta la elija el jugador,
+    // permitimos el primer click en cualquier carta (será fijada en handleCardClick).
     if (!firstCard) return true;
-    const restriction = getRestriction(roomData?.gameState?.gameMode || "full", firstCard);
+
+    // Si ya hay firstCard, usar la restricción dinámica
+    const restriction = getRestriction(mode || "full", firstCard);
     return restriction(card);
   };
 
-  const [selectedMode, setSelectedMode] = useState<string>(""); // empieza vacío
+  // Mantener selectedMode sincronizado con lo que venga desde el servidor (roomData)
+  useEffect(() => {
+    const modeFromServer = roomData?.gameState?.gameMode;
+    if (modeFromServer && modeFromServer !== selectedMode) {
+      setSelectedMode(modeFromServer);
+    }
+  }, [roomData?.gameState?.gameMode, selectedMode]);
 
+  // Determina el modo efectivo (primero servidor, si no usar selección local)
+  const effectiveMode = roomData?.gameState?.gameMode || selectedMode;
+
+  // Escuchar respuesta de claimWin
+  useEffect(() => {
+    const unsubscribeClaimWin = gameSocket.onClaimWinResult((result) => {
+      if (result.success) {
+        console.log("✅ Victoria validada por servidor");
+      } else {
+        console.warn("❌ Victoria rechazada:", result.error || result.alreadyWinner);
+      }
+    });
+    return () => {
+      unsubscribeClaimWin();
+    };
+  }, []);
 
   return (
     <>

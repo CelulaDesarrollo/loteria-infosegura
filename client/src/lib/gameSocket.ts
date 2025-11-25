@@ -76,6 +76,12 @@ class GameSocket {
         return () => this.socket.off("playerLeft", cb);
     }
 
+    // Listener para respuesta de claimWin
+    onClaimWinResult(callback: (result: { success: boolean; error?: string; alreadyWinner?: boolean }) => void) {
+        this.socket.on("claimWinResult", callback);
+        return () => this.socket.off("claimWinResult", callback);
+    }
+
     async ensureConnection(timeoutMs = 5000): Promise<void> {
         if (this.socket.connected) return;
         if (this.connecting) {
@@ -164,11 +170,26 @@ class GameSocket {
       });
     }
 
-    // Wrapper simple para emitir; espera conexión y resuelve inmediatamente después de emitir.
-    async emit(event: string, ...args: any[]) {
+    // Wrapper mejorado para emitir con callback/respuesta del servidor
+    async emit(event: string, ...args: any[]): Promise<any> {
         await this.ensureConnection();
         try {
-            this.socket.emit(event, ...args);
+            return new Promise<any>((resolve, reject) => {
+                try {
+                    // socket.io ack puede devolver cualquier número de args; normalmente 1 (response)
+                    this.socket.emit(event, ...args, (...cbArgs: any[]) => {
+                        // Si no hay argumentos, resolver como undefined
+                        if (!cbArgs || cbArgs.length === 0) return resolve(undefined);
+                        // Si el servidor usó convención error-first y pasa (err, res)
+                        if (cbArgs.length === 2 && cbArgs[0]) return reject(cbArgs[0]);
+                        // Devolver el primer argumento como respuesta
+                        return resolve(cbArgs[0]);
+                    });
+                } catch (emitErr) {
+                    console.error("[gameSocket] emit internal error", emitErr);
+                    reject(emitErr);
+                }
+            });
         } catch (e) {
             console.error("[gameSocket] emit error", e);
             throw e;

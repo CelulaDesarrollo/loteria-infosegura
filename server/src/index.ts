@@ -523,6 +523,93 @@ async function startServer() {
           socket.emit("error", { message: "Error al detener juego" });
         }
       });
+
+      // Cliente solicita que el servidor valide una victoria
+      socket.on("claimWin", async (roomId: string, playerName: string, payload: any, callback: Function) => {
+        console.log("📥 claimWin recibido:", { roomId, playerName, markedCount: payload?.markedIndices?.length });
+        try {
+          if (!roomId || !playerName) {
+            console.warn("❌ claimWin: parámetros inválidos");
+            if (typeof callback === 'function') callback({ success: false, error: "invalid_params" });
+            return;
+          }
+          const room = await RoomService.getRoom(roomId);
+          if (!room || !room.players) {
+            console.warn("❌ claimWin: sala no encontrada");
+            if (typeof callback === 'function') callback({ success: false, error: "room_not_found" });
+            return;
+          }
+          const player = room.players[playerName];
+          if (!player) {
+            console.warn("❌ claimWin: jugador no encontrado");
+            if (typeof callback === 'function') callback({ success: false, error: "player_not_found" });
+            return;
+          }
+
+          const mode = payload?.gameMode || room.gameState?.gameMode || "full";
+          const markedIndices = Array.isArray(payload?.markedIndices) ? payload.markedIndices : (player.markedIndices || []);
+          const board = payload?.board ?? (player as any)?.board;
+          if (!board) {
+            console.warn("❌ claimWin: no hay board");
+            if (typeof callback === 'function') callback({ success: false, error: "no_board" });
+            return;
+          }
+          const firstCard = payload?.firstCard || null;
+          const calledCardIds = Array.isArray(room.gameState?.calledCardIds) ? room.gameState.calledCardIds : [];
+
+          console.log("🔍 Validando victoria:", { playerName, mode, markedCount: markedIndices.length, calledCount: calledCardIds.length });
+
+          // Validar con lógica centralizada (pasando calledCardIds)
+          const validWin = checkWin(board, markedIndices, mode, firstCard, calledCardIds);
+          console.log(`✓ checkWin(${mode}) = ${validWin}`);
+          
+          if (!validWin) {
+            console.log("❌ checkWin devolvió false para", { playerName, mode, markedIndices: markedIndices.length });
+            if (typeof callback === 'function') callback({ success: false, error: "invalid_pattern" });
+            return;
+          }
+
+          // Si ya existe ganador evitar duplicados
+          if (room.gameState?.winner) {
+            console.log("⚠️ Ya hay ganador:", room.gameState.winner);
+            if (typeof callback === 'function') callback({ success: false, alreadyWinner: true });
+            return;
+          }
+
+          // 🏆 FIJADOR DE GANADOR (una sola vez)
+          console.log(`🏆 ¡${playerName} ganó en ${roomId}! Modo: ${mode}`);
+          room.gameState = {
+            ...(room.gameState || {}),
+            winner: playerName,
+            isGameActive: false,
+            timestamp: Date.now(),
+          };
+          
+          // Calcular ranking con markedIndices intactos
+          const finalRanking = calculateFinalRanking(room.players as Record<string, Player>);
+          room.gameState.finalRanking = finalRanking;
+          console.log(`📊 Ranking calculado:`, finalRanking);
+
+          // Persistir
+          await RoomService.createOrUpdateRoom(roomId, room);
+          RoomService.stopCallingCards(roomId);
+
+          // 📡 EMITIR A TODOS EN LA SALA
+          io.to(roomId).emit("gameUpdated", room.gameState);
+          io.to(roomId).emit("roomUpdated", room);
+          
+          // ✅ RESPONDER AL CLIENTE (solo una vez)
+          if (typeof callback === 'function') {
+            callback({ success: true });
+          }
+          
+        } catch (e) {
+          console.error("❌ Error en claimWin:", e);
+          if (typeof callback === 'function') {
+            callback({ success: false, error: String(e) });
+          }
+        }
+      });
     });
 
     // (removed stray IIFE closure — fastify.ready callback ya está correctamente cerrado arriba)
@@ -552,5 +639,92 @@ const calculateFinalRanking = (players: any) => {
     }))
     .sort((a, b) => b.seleccionadas - a.seleccionadas);
 };
+
+// Cliente solicita que el servidor valide una victoria
+    socket.on("claimWin", async (roomId: string, playerName: string, payload: any, callback: Function) => {
+      console.log("📥 claimWin recibido:", { roomId, playerName, markedCount: payload?.markedIndices?.length });
+      try {
+        if (!roomId || !playerName) {
+          console.warn("❌ claimWin: parámetros inválidos");
+          if (typeof callback === 'function') callback({ success: false, error: "invalid_params" });
+          return;
+        }
+        const room = await RoomService.getRoom(roomId);
+        if (!room || !room.players) {
+          console.warn("❌ claimWin: sala no encontrada");
+          if (typeof callback === 'function') callback({ success: false, error: "room_not_found" });
+          return;
+        }
+        const player = room.players[playerName];
+        if (!player) {
+          console.warn("❌ claimWin: jugador no encontrado");
+          if (typeof callback === 'function') callback({ success: false, error: "player_not_found" });
+          return;
+        }
+
+        const mode = payload?.gameMode || room.gameState?.gameMode || "full";
+        const markedIndices = Array.isArray(payload?.markedIndices) ? payload.markedIndices : (player.markedIndices || []);
+        const board = payload?.board ?? (player as any)?.board;
+        if (!board) {
+          console.warn("❌ claimWin: no hay board");
+          if (typeof callback === 'function') callback({ success: false, error: "no_board" });
+          return;
+        }
+        const firstCard = payload?.firstCard || null;
+        const calledCardIds = Array.isArray(room.gameState?.calledCardIds) ? room.gameState.calledCardIds : [];
+
+        console.log("🔍 Validando victoria:", { playerName, mode, markedCount: markedIndices.length, calledCount: calledCardIds.length });
+
+        // Validar con lógica centralizada (pasando calledCardIds)
+        const validWin = checkWin(board, markedIndices, mode, firstCard, calledCardIds);
+        console.log(`✓ checkWin(${mode}) = ${validWin}`);
+        
+        if (!validWin) {
+          console.log("❌ checkWin devolvió false para", { playerName, mode, markedIndices: markedIndices.length });
+          if (typeof callback === 'function') callback({ success: false, error: "invalid_pattern" });
+          return;
+        }
+
+        // Si ya existe ganador evitar duplicados
+        if (room.gameState?.winner) {
+          console.log("⚠️ Ya hay ganador:", room.gameState.winner);
+          if (typeof callback === 'function') callback({ success: false, alreadyWinner: true });
+          return;
+        }
+
+        // 🏆 FIJADOR DE GANADOR (una sola vez)
+        console.log(`🏆 ¡${playerName} ganó en ${roomId}! Modo: ${mode}`);
+        room.gameState = {
+          ...(room.gameState || {}),
+          winner: playerName,
+          isGameActive: false,
+          timestamp: Date.now(),
+        };
+        
+        // Calcular ranking con markedIndices intactos
+        const finalRanking = calculateFinalRanking(room.players as Record<string, Player>);
+        room.gameState.finalRanking = finalRanking;
+        console.log(`📊 Ranking calculado:`, finalRanking);
+
+        // Persistir
+        await RoomService.createOrUpdateRoom(roomId, room);
+        RoomService.stopCallingCards(roomId);
+
+        // 📡 EMITIR A TODOS EN LA SALA
+        io.to(roomId).emit("gameUpdated", room.gameState);
+        io.to(roomId).emit("roomUpdated", room);
+        
+        // ✅ RESPONDER AL CLIENTE (solo una vez)
+        if (typeof callback === 'function') {
+          callback({ success: true });
+        }
+        
+      } catch (e) {
+        console.error("❌ Error en claimWin:", e);
+        if (typeof callback === 'function') {
+          callback({ success: false, error: String(e) });
+        }
+      }
+    });
 
 
