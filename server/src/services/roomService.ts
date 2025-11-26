@@ -204,7 +204,7 @@ export class RoomService {
     );
 
     if (existingPlayer) {
-      return { added: false, reason: 'name_in_use' };
+      return { added: false, reason: 'name_exists' }; // ← cambiar de 'name_in_use' a 'name_exists'
     }
 
     // Verificar límite de jugadores
