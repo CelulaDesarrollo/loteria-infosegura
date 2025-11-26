@@ -48,7 +48,7 @@ export function DealerDisplay({
               </div>
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                <p className="text-muted-foreground text-center"> ¿Estás listo? Por iniciar partida…</p>
+                <p className="text-muted-foreground text-center"> ¿Estás listo?</p>
               </div>
             )}
           </Card>
