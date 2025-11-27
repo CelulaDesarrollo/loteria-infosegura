@@ -194,10 +194,11 @@ export function checkWin(
     }
 
     case "square": {
-      // Cuadrado central FIJO: [5, 6, 9, 10]
-      const squarePattern = WINNING_PATTERNS[11]; // [5, 6, 9, 10]
-      const win = squarePattern.every((idx) => markedIndices.includes(idx));
-      console.log(`checkWin(square): pattern=${squarePattern}, win=${win}`);
+      const squarePatterns = WINNING_PATTERNS.slice(11); // [5, 6, 9, 10]
+      const win = squarePatterns.some((pattern) =>
+        pattern.every((idx) => markedIndices.includes(idx))
+      );
+      console.log(`checkWin(square): pattern=${squarePatterns[0]}, win=${win}`);
       return win;
     }
 

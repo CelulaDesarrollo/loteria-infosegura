@@ -119,20 +119,27 @@ export function createDeck(): Card[] {
 
 /**
  * Checks if a set of marked indices on a board constitutes a win.
+ * @param board The player's board (array of 16 Cards).
  * @param markedIndices The indices of the marked cards (0-15).
+ * @param gameMode The game mode ("full", "horizontal", "vertical", etc).
+ * @param firstCard The first card selected (null or {row, col}).
+ * @param calledCardIds Optional array of called card IDs for validation.
  * @returns True if a winning pattern is met, false otherwise.
  */
 export function checkWin(
-  markedIndices: number[],
   board: Card[],
-  calledCardIds: number[],
-  gameMode: string = "full"
+  markedIndices: number[],
+  gameMode: string = "full",
+  firstCard: { row: number; col: number } | null = null,
+  calledCardIds: number[] = []
 ): boolean {
   // Validar que las cartas marcadas estén en las llamadas
-  const validMarks = markedIndices.every(
-    (idx) => calledCardIds.includes(board[idx].id)
-  );
-  if (!validMarks) return false;
+  if (Array.isArray(calledCardIds) && calledCardIds.length > 0) {
+    const validMarks = markedIndices.every(
+      (idx) => idx < board.length && calledCardIds.includes(board[idx].id)
+    );
+    if (!validMarks) return false;
+  }
 
   switch (gameMode) {
     case "full":
@@ -165,10 +172,12 @@ export function checkWin(
     }
 
     case "square": {
-      const squarePatterns = WINNING_PATTERNS.slice(11);
-      return squarePatterns.some((pattern) =>
+      const squarePatterns = WINNING_PATTERNS.slice(11); // [5, 6, 9, 10]
+      const win = squarePatterns.some((pattern) =>
         pattern.every((idx) => markedIndices.includes(idx))
       );
+      console.log(`checkWin(square): pattern=${squarePatterns[0]}, win=${win}`);
+      return win;
     }
 
     default:
@@ -217,25 +226,10 @@ export function getRestriction(
         Math.abs(pos.col - firstCard.col) <= 1;
 
     */
-    // Cuadrado dinámico de 2x2 según la carta seleccionada
+    // Cuadrado FIJO central (siempre los mismos 4 índices)
     case "square":
-      if (!firstCard) {
-        // Permite seleccionar cualquier carta como inicio
-        return () => true;
-      }
-      // Calcula las posiciones del cuadrado 2x2 alrededor de la carta seleccionada
-      const { row, col } = firstCard;
-      const indices: number[] = [];
-      // Asegura que el cuadrado no se salga del tablero
-      const startRow = row === 3 ? 2 : row;
-      const startCol = col === 3 ? 2 : col;
-      for (let r = startRow; r < startRow + 2; r++) {
-        for (let c = startCol; c < startCol + 2; c++) {
-          indices.push(r * 4 + c);
-        }
-      }
-      return (pos) => indices.includes(pos.row * 4 + pos.col);
-
+      const squareIndices = [5, 6, 9, 10];
+      return (pos) => squareIndices.includes(pos.row * 4 + pos.col);
 
     default: // "full" → libre
       return () => true;
